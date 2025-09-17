@@ -1,0 +1,15 @@
+
+# Framework para a API
+Flask
+Flask-Cors
+Flask-JWT-Extended
+
+openpyxl
+
+# Biblioteca para automação web (RPA)
+playwright
+
+# Para carregar variáveis de ambiente (melhora a segurança)
+python-dotenv
+
+schedule
