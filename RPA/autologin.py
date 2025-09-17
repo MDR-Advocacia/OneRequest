@@ -79,6 +79,35 @@ def main():
             
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             
+            # --- NOVA LINHA ADICIONADA para esperar o elemento ---
+            print("    - Aguardando o elemento '<p>Portal Jurídico</p>' para garantir que a página carregou completamente...")
+            # Como a página foi fechada, precisamos re-abrir ela
+            extension_page = context.new_page()
+            extension_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
+            extension_page.wait_for_selector('p:text("Portal Jurídico")')
+            
+            # --- LINHAS MODIFICADAS PARA LIMPEZA SELETIVA DE COOKIES ---
+            print("▶️  Iniciando a limpeza seletiva de cookies...")
+
+            # Pega todos os cookies antes da limpeza para visualização
+            all_cookies = context.cookies()
+            print(f"    Cookies antes da limpeza: {len(all_cookies)} cookies encontrados.")
+
+            # Tenta remover o cookie 'JSESSIONID' para o domínio com e sem o ponto inicial.
+            # Isso garante a remoção, independentemente de como o servidor o configurou.
+            print("    - Tentando remover o cookie com o domínio '.juridico.bb.com.br'...")
+            context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
+
+            print("    - Tentando remover o cookie com o domínio 'juridico.bb.com.br'...")
+            context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
+
+            # Pega os cookies restantes para verificação
+            remaining_cookies = context.cookies()
+            print(f"    Cookies após a limpeza: {len(remaining_cookies)} cookies restantes.")
+            
+            print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
+            # -----------------------------------------------------------
+            
     except Exception as e:
         print("\n========================= ERRO =========================")
         print(f"Ocorreu uma falha na automação: {e}")
