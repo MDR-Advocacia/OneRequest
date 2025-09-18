@@ -65,28 +65,64 @@ def clicar_pesquisar(frame):
         print(f"[❌] Falha ao clicar no botão 'Pesquisar': {e}")
         return False
 
+
 def alterar_registros_por_pagina(frame):
     """
-    Função para clicar no botão '50' e aguardar o carregamento da página.
+    Função para clicar no botão '50' e aguardar o carregamento da página com os 50 itens.
     """
     print("\n🔢 Clicando no botão '50' para exibir mais registros...")
     
     try:
-        # Usa o seletor mais confiável para encontrar o botão de 50
         seletor_50 = 'a.dr-dscr-button:has-text("50")'
         
+        # Clica no botão para alterar a quantidade de registros por página
         frame.click(seletor_50, timeout=10000)
         print("✅ Botão '50' clicado com sucesso!")
 
         print("[⏳] Aguardando a página recarregar com 50 registros...")
-        # Espera um indicador de que a nova tabela foi carregada
-        frame.wait_for_selector("div.dataTableNumeroRegistros", timeout=20000)
-        print("✅ Registros por página alterados para 50.")
         
+        # --- LÓGICA CORRIGIDA ---
+        # Espera o elemento de status de registros aparecer E CONTER o texto '1-50'
+        seletor_status_registros = 'div.dataTableNumeroRegistros:has-text("1-50")'
+        frame.wait_for_selector(seletor_status_registros, timeout=30000)
+        # ------------------------
+        
+        print("✅ Registros por página alterados para 50.")
         return True
     except Exception as e:
-        print(f"[❌] Falha ao clicar no botão '50' ou a página não recarregou: {e}")
+        print(f"[❌] Falha ao clicar no botão '50' ou a página não recarregou com os 50 itens: {e}")
         return False
+
+def extrair_solicitacoes(frame):
+    """
+    Captura os números de solicitação da tabela de pendências.
+    """
+    print("\n📋 Extraindo números das solicitações da tabela...")
+    solicitacoes = []
+    
+    # Seletor para todas as linhas da tabela
+    linhas = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').all()
+    
+    if not linhas:
+        print("[⚠️] Nenhuma linha encontrada na tabela. Verifique se os registros foram carregados.")
+        return []
+    
+    for i, linha in enumerate(linhas):
+        try:
+            # O número da solicitação está na primeira célula da linha, dentro de um <a>
+            celula_numero = linha.locator('td').first
+            link_numero = celula_numero.locator('a').first
+            numero = link_numero.inner_text().strip()
+            
+            if numero:
+                solicitacoes.append(numero)
+            
+        except Exception as e:
+            print(f"[❌] Erro ao extrair dados da linha {i}: {e}")
+            continue
+            
+    print(f"✅ Extração concluída. {len(solicitacoes)} solicitações encontradas.")
+    return solicitacoes
 
 def main():
     """
@@ -174,12 +210,18 @@ def main():
             print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
             
             # ETAPA 6: Navegar para o módulo de assessoria e clicar no botão
+            # ESTE BLOCO DE CÓDIGO FOI MOVIDO PARA DENTRO DO 'with sync_playwright() as p:'
             tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
             
             if tarefa_frame:
                 if clicar_pesquisar(tarefa_frame):
-                    # Chamando a nova função para alterar os registros por página
-                    alterar_registros_por_pagina(tarefa_frame)
+                    if alterar_registros_por_pagina(tarefa_frame):
+                        # --- NOVA ETAPA: EXTRAIR AS SOLICITAÇÕES ---
+                        numeros_solicitacoes = extrair_solicitacoes(tarefa_frame)
+                        print("Números capturados:", numeros_solicitacoes)
+                        # Agora você pode processar essa lista (salvar em JSON, etc.)
+                    else:
+                        print("❌ Não foi possível alterar o número de registros por página.")
                 else:
                     print("❌ Não foi possível realizar a pesquisa. O script será encerrado.")
                     
