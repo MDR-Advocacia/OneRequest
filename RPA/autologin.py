@@ -1,7 +1,7 @@
 import time
 import subprocess
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, Page, Frame
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
 
@@ -13,6 +13,57 @@ BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
 
 # 3. Porta de depuração.
 CDP_ENDPOINT = "http://localhost:9222"
+
+def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
+    """
+    Navega para a seção de assessoria e encontra o frame que contém o botão de pesquisa.
+    """
+    print("[🔁] Acessando seção 'Assessoria - Visão Advogado'...")
+    # Muda a forma de espera da página para 'domcontentloaded'
+    page.goto(
+        "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar",
+        timeout=90000,
+        wait_until="domcontentloaded"
+    )
+    
+    print("    - Procurando pelo frame que contém o botão de pesquisa...")
+    for frame in page.frames:
+        try:
+            # O .content() pode falhar em frames de diferentes origens
+            if "btPesquisar" in frame.content():
+                print(f"[✅] Frame encontrado: {frame.name or '[sem nome]'}")
+                return frame
+        except Exception:
+            # Ignora frames inacessíveis e continua a busca
+            continue
+    print("[❌] Frame com botão 'Pesquisar' não localizado.")
+    return None
+
+def clicar_pesquisar(frame):
+    """
+    Localiza e clica no botão 'Pesquisar' dentro do frame de forma robusta.
+    """
+    print("[🔍] Clicando no botão 'Pesquisar'...")
+    try:
+        # Usa o seletor CSS que você sabe que funciona
+        seletor_botao = "input[type='image'][name='pesquisarPendenciaTarefaForm:btPTarefa']"
+        
+        # Espera o botão de pesquisa ficar visível no frame
+        print("    - Aguardando o botão de pesquisa...")
+        frame.wait_for_selector(seletor_botao, timeout=20000)
+        
+        # Clica no botão
+        frame.click(seletor_botao)
+
+        print("[⏳] Aguardando carregamento dos registros...")
+        # Espera a div com o número de registros aparecer como confirmação de carregamento
+        frame.wait_for_selector("div.dataTableNumeroRegistros", timeout=20000)
+        
+        print("[✅] Registros carregados com sucesso.")
+        return True
+    except Exception as e:
+        print(f"[❌] Falha ao clicar no botão 'Pesquisar': {e}")
+        return False
 
 def main():
     """
@@ -32,7 +83,7 @@ def main():
         with sync_playwright() as p:
             browser = None
             # ETAPA 2: Conectar ao Navegador Aberto
-            for attempt in range(15): # Tenta se conectar por até 30 segundos
+            for attempt in range(15):
                 try:
                     time.sleep(2)
                     print(f"    Tentativa de conexão nº {attempt + 1}...")
@@ -45,13 +96,11 @@ def main():
             if not browser:
                 raise ConnectionError("Não foi possível conectar ao navegador.")
 
-            # O contexto é obtido do navegador já aberto
             context = browser.contexts[0]
             
             # ETAPA 3: Abrir a Extensão e Realizar o Login
             print(f"🚀 Navegando diretamente para a URL da extensão...")
             
-            # Reutiliza uma guia existente ou cria uma nova se não houver
             extension_page = context.pages[0] if context.pages else context.new_page()
             extension_page.goto(EXTENSION_URL)
             extension_page.wait_for_load_state("domcontentloaded")
@@ -63,8 +112,6 @@ def main():
             print("    - Pesquisando por 'banco do'...")
             search_input.fill("banco do")
 
-            # --- PARTE CORRIGIDA ---
-            # Espera a nova página ser criada PELA EXTENSÃO.
             with context.expect_event('page') as new_page_info:
                 print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
                 login_button = extension_page.locator(
@@ -76,12 +123,9 @@ def main():
                 print("    - Clicando no botão de confirmação 'ACESSAR'...")
                 extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
             
-            # Captura a nova página que foi aberta
             portal_page = new_page_info.value
-            # A página original da extensão pode ser fechada para manter a organização
             extension_page.close()
-            # ------------------------
-
+            
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
             
@@ -106,14 +150,14 @@ def main():
             
             print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
             
-            # ETAPA 6: Navegar para o módulo de assessoria na mesma guia
-            print("\n▶️  Acessando o módulo de assessoria na mesma guia...")
-            portal_page.goto("https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar")
+            # ETAPA 6: Navegar para o módulo de assessoria e clicar no botão
+            tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
             
-            print("    - Aguardando o elemento da lista de tarefas para confirmar o carregamento da página...")
-            portal_page.wait_for_selector('h1:has-text("Lista de Pendências de Tarefa")')
-            
-            print("✅ Acesso ao módulo de assessoria confirmado. O robô está pronto para continuar.")
+            if tarefa_frame:
+                clicar_pesquisar(tarefa_frame)
+            else:
+                print("❌ Não foi possível encontrar o botão de pesquisa. O script será encerrado.")
+                raise Exception("Botão 'Pesquisar' não encontrado dentro de um frame.")
             
     except Exception as e:
         print("\n========================= ERRO =========================")
