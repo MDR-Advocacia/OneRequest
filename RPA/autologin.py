@@ -48,7 +48,7 @@ def main():
             # O contexto é obtido do navegador já aberto
             context = browser.contexts[0]
             
-            # ETAPA 3: Abrir a Extensão, Pesquisar e Realizar o Login
+            # ETAPA 3: Abrir a Extensão e Realizar o Login
             print(f"🚀 Navegando diretamente para a URL da extensão...")
             
             # Reutiliza uma guia existente ou cria uma nova se não houver
@@ -63,36 +63,44 @@ def main():
             print("    - Pesquisando por 'banco do'...")
             search_input.fill("banco do")
 
-            print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-            login_button = extension_page.locator(
-                'div[role="menuitem"]:not([disabled])', 
-                has_text="Banco do Brasil - Intranet"
-            ).first
-            login_button.click(timeout=10000)
+            # --- PARTE CORRIGIDA ---
+            # Espera a nova página ser criada PELA EXTENSÃO.
+            with context.expect_event('page') as new_page_info:
+                print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
+                login_button = extension_page.locator(
+                    'div[role="menuitem"]:not([disabled])', 
+                    has_text="Banco do Brasil - Intranet"
+                ).first
+                login_button.click(timeout=10000)
 
-            print("    - Clicando no botão de confirmação 'ACESSAR'...")
-            extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
+                print("    - Clicando no botão de confirmação 'ACESSAR'...")
+                extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
+            
+            # Captura a nova página que foi aberta
+            portal_page = new_page_info.value
+            # A página original da extensão pode ser fechada para manter a organização
+            extension_page.close()
+            # ------------------------
 
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
             
-            # ETAPA 4: Navegar para o Portal Jurídico na mesma guia
+            # ETAPA 4: Navegar para o Portal Jurídico na mesma guia que foi aberta
             print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            extension_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
-            extension_page.wait_for_selector('p:text("Portal Jurídico")')
+            portal_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
+            portal_page.wait_for_selector('p:text("Portal Jurídico")')
             
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             
             # ETAPA 5: Limpeza seletiva de cookies
             print("▶️  Iniciando a limpeza seletiva de cookies...")
-
             all_cookies = context.cookies()
             print(f"    Cookies antes da limpeza: {len(all_cookies)} cookies encontrados.")
 
             print("    - Tentando remover o cookie 'JSESSIONID'...")
             context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
             context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-
+            
             remaining_cookies = context.cookies()
             print(f"    Cookies após a limpeza: {len(remaining_cookies)} cookies restantes.")
             
@@ -100,10 +108,10 @@ def main():
             
             # ETAPA 6: Navegar para o módulo de assessoria na mesma guia
             print("\n▶️  Acessando o módulo de assessoria na mesma guia...")
-            extension_page.goto("https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar")
+            portal_page.goto("https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar")
             
             print("    - Aguardando o elemento da lista de tarefas para confirmar o carregamento da página...")
-            extension_page.wait_for_selector('h1:has-text("Lista de Pendências de Tarefa")')
+            portal_page.wait_for_selector('h1:has-text("Lista de Pendências de Tarefa")')
             
             print("✅ Acesso ao módulo de assessoria confirmado. O robô está pronto para continuar.")
             
