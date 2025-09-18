@@ -45,11 +45,14 @@ def main():
             if not browser:
                 raise ConnectionError("Não foi possível conectar ao navegador.")
 
+            # O contexto é obtido do navegador já aberto
             context = browser.contexts[0]
             
             # ETAPA 3: Abrir a Extensão, Pesquisar e Realizar o Login
             print(f"🚀 Navegando diretamente para a URL da extensão...")
-            extension_page = context.new_page()
+            
+            # Reutiliza uma guia existente ou cria uma nova se não houver
+            extension_page = context.pages[0] if context.pages else context.new_page()
             extension_page.goto(EXTENSION_URL)
             extension_page.wait_for_load_state("domcontentloaded")
 
@@ -67,53 +70,49 @@ def main():
             ).first
             login_button.click(timeout=10000)
 
-            # --- LINHA ADICIONADA ---
-            # Clica no botão "ACESSAR" que aparece após a seleção.
             print("    - Clicando no botão de confirmação 'ACESSAR'...")
             extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-            # --------------------------
 
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
-            extension_page.close()
             
-            print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
-            
-            # --- NOVA LINHA ADICIONADA para esperar o elemento ---
-            print("    - Aguardando o elemento '<p>Portal Jurídico</p>' para garantir que a página carregou completamente...")
-            # Como a página foi fechada, precisamos re-abrir ela
-            extension_page = context.new_page()
+            # ETAPA 4: Navegar para o Portal Jurídico na mesma guia
+            print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
             extension_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
             extension_page.wait_for_selector('p:text("Portal Jurídico")')
             
-            # --- LINHAS MODIFICADAS PARA LIMPEZA SELETIVA DE COOKIES ---
+            print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
+            
+            # ETAPA 5: Limpeza seletiva de cookies
             print("▶️  Iniciando a limpeza seletiva de cookies...")
 
-            # Pega todos os cookies antes da limpeza para visualização
             all_cookies = context.cookies()
             print(f"    Cookies antes da limpeza: {len(all_cookies)} cookies encontrados.")
 
-            # Tenta remover o cookie 'JSESSIONID' para o domínio com e sem o ponto inicial.
-            # Isso garante a remoção, independentemente de como o servidor o configurou.
-            print("    - Tentando remover o cookie com o domínio '.juridico.bb.com.br'...")
+            print("    - Tentando remover o cookie 'JSESSIONID'...")
             context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-
-            print("    - Tentando remover o cookie com o domínio 'juridico.bb.com.br'...")
             context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
 
-            # Pega os cookies restantes para verificação
             remaining_cookies = context.cookies()
             print(f"    Cookies após a limpeza: {len(remaining_cookies)} cookies restantes.")
             
             print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
-            # -----------------------------------------------------------
+            
+            # ETAPA 6: Navegar para o módulo de assessoria na mesma guia
+            print("\n▶️  Acessando o módulo de assessoria na mesma guia...")
+            extension_page.goto("https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar")
+            
+            print("    - Aguardando o elemento da lista de tarefas para confirmar o carregamento da página...")
+            extension_page.wait_for_selector('h1:has-text("Lista de Pendências de Tarefa")')
+            
+            print("✅ Acesso ao módulo de assessoria confirmado. O robô está pronto para continuar.")
             
     except Exception as e:
         print("\n========================= ERRO =========================")
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
     finally:
-        # ETAPA 5: Finalização Limpa
+        # ETAPA FINAL: Finalização Limpa
         if browser_process:
             input("\n... Pressione Enter para fechar o navegador e encerrar o script ...")
             subprocess.run(f"TASKKILL /F /PID {browser_process.pid} /T", shell=True, capture_output=True)
