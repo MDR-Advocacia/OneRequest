@@ -19,7 +19,7 @@ def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
     Navega para a seção de assessoria e encontra o frame que contém o botão de pesquisa.
     """
     print("[🔁] Acessando seção 'Assessoria - Visão Advogado'...")
-    # Muda a forma de espera da página para 'domcontentloaded'
+    # Aumenta o timeout para dar tempo da página carregar
     page.goto(
         "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar",
         timeout=90000,
@@ -63,6 +63,29 @@ def clicar_pesquisar(frame):
         return True
     except Exception as e:
         print(f"[❌] Falha ao clicar no botão 'Pesquisar': {e}")
+        return False
+
+def alterar_registros_por_pagina(frame):
+    """
+    Função para clicar no botão '50' e aguardar o carregamento da página.
+    """
+    print("\n🔢 Clicando no botão '50' para exibir mais registros...")
+    
+    try:
+        # Usa o seletor mais confiável para encontrar o botão de 50
+        seletor_50 = 'a.dr-dscr-button:has-text("50")'
+        
+        frame.click(seletor_50, timeout=10000)
+        print("✅ Botão '50' clicado com sucesso!")
+
+        print("[⏳] Aguardando a página recarregar com 50 registros...")
+        # Espera um indicador de que a nova tabela foi carregada
+        frame.wait_for_selector("div.dataTableNumeroRegistros", timeout=20000)
+        print("✅ Registros por página alterados para 50.")
+        
+        return True
+    except Exception as e:
+        print(f"[❌] Falha ao clicar no botão '50' ou a página não recarregou: {e}")
         return False
 
 def main():
@@ -154,7 +177,12 @@ def main():
             tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
             
             if tarefa_frame:
-                clicar_pesquisar(tarefa_frame)
+                if clicar_pesquisar(tarefa_frame):
+                    # Chamando a nova função para alterar os registros por página
+                    alterar_registros_por_pagina(tarefa_frame)
+                else:
+                    print("❌ Não foi possível realizar a pesquisa. O script será encerrado.")
+                    
             else:
                 print("❌ Não foi possível encontrar o botão de pesquisa. O script será encerrado.")
                 raise Exception("Botão 'Pesquisar' não encontrado dentro de um frame.")
