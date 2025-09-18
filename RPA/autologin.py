@@ -2,6 +2,8 @@ import time
 import subprocess
 from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, Frame
+import json
+import random
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
 
@@ -24,7 +26,7 @@ def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
         timeout=90000,
         wait_until="domcontentloaded"
     )
-    
+
     print("    - Procurando pelo frame que contém o botão de pesquisa...")
     for frame in page.frames:
         try:
@@ -43,15 +45,15 @@ def clicar_pesquisar(frame):
     print("[🔍] Clicando no botão 'Pesquisar'...")
     try:
         seletor_botao = "input[type='image'][name='pesquisarPendenciaTarefaForm:btPTarefa']"
-        
+
         print("    - Aguardando o botão de pesquisa...")
         frame.wait_for_selector(seletor_botao, timeout=20000)
-        
+
         frame.click(seletor_botao)
 
         print("[⏳] Aguardando carregamento dos registros...")
         frame.wait_for_selector("div.dataTableNumeroRegistros", timeout=20000)
-        
+
         print("[✅] Registros carregados com sucesso.")
         return True
     except Exception as e:
@@ -63,10 +65,10 @@ def alterar_registros_por_pagina(frame):
     Função para clicar no botão '50' e aguardar o carregamento da página.
     """
     print("\n🔢 Clicando no botão '50' para exibir mais registros...")
-    
+
     try:
         seletor_50 = 'a.dr-dscr-button:has-text("50")'
-        
+
         frame.click(seletor_50, timeout=10000)
         print("✅ Botão '50' clicado com sucesso!")
 
@@ -74,67 +76,94 @@ def alterar_registros_por_pagina(frame):
         seletor_status_registros = 'div.dataTableNumeroRegistros:has-text("1-50")'
         frame.wait_for_selector(seletor_status_registros, timeout=30000)
         print("✅ Registros por página alterados para 50.")
-        
+
         return True
     except Exception as e:
         print(f"[❌] Falha ao clicar no botão '50' ou a página não recarregou: {e}")
         return False
 
-def passar_para_proxima_pagina(frame) -> bool:
+def encontrar_botao_proxima_pagina(frame):
     """
-    Localiza e clica na seta para passar para a próxima página.
-    Retorna True se o clique for bem-sucedido, False caso contrário.
+    Localiza o botão de próxima página (seta para a direita).
     """
-    print("\n➡️  Tentando passar para a próxima página...")
-    
     try:
-        seletor_proxima = 'a.mi--chevron-right'
-        
-        # Espera a seta de próxima página ficar visível e clicável
-        proxima_pagina_btn = frame.locator(seletor_proxima)
-        proxima_pagina_btn.wait_for(state='visible', timeout=10000)
+        # Tenta localizar o botão pela classe de ícone
+        botao_proximo = frame.locator('a.mi--chevron-right')
+        if botao_proximo.is_visible() and botao_proximo.is_enabled():
+            return botao_proximo
+    except Exception:
+        pass
+    
+    return None
 
-        # Clica no botão. Ele pode ser um link que dispara uma requisição AJAX.
-        proxima_pagina_btn.click()
-        print("✅ Clique na seta para próxima página realizado com sucesso!")
-
-        # Espera que a nova lista de registros carregue.
-        print("[⏳] Aguardando o carregamento da próxima página...")
-        frame.wait_for_selector('div.dataTableNumeroRegistros', timeout=30000)
-        
-        return True
-    except Exception as e:
-        print(f"[❌] Falha ao passar para a próxima página: {e}")
-        return False
-
-def extrair_solicitacoes(frame):
+def extrair_todos_numeros_solicitacoes(frame):
     """
-    Captura os números de solicitação da tabela de pendências.
+    Extrai todos os números de solicitação de todas as páginas da tabela.
     """
     print("\n📋 Extraindo números das solicitações da tabela...")
-    solicitacoes = []
+    todos_numeros = set()
+    pagina_atual = 1
     
-    linhas = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').all()
-    
-    if not linhas:
-        print("[⚠️] Nenhuma linha encontrada na tabela. Verifique se os registros foram carregados.")
-        return []
-    
-    for i, linha in enumerate(linhas):
-        try:
-            celula_numero = linha.locator('td').first
-            link_numero = celula_numero.locator('a').first
-            numero = link_numero.inner_text().strip()
+    while True:
+        print(f"[📄] Lendo página {pagina_atual}...")
+        
+        # O seletor para as linhas é o mesmo do código original
+        linhas = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').all()
+        
+        if not linhas:
+            print("[⚠️] Nenhuma linha encontrada. Fim da extração.")
+            break
             
-            if numero:
-                solicitacoes.append(numero)
+        for linha in linhas:
+            try:
+                # Extrai apenas o número da solicitação da primeira célula de cada linha
+                celula_numero = linha.locator('td').first
+                link_numero = celula_numero.locator('a').first
+                numero = link_numero.inner_text().strip()
+                
+                if numero:
+                    todos_numeros.add(numero)
+                    
+            except Exception as e:
+                print(f"[❌] Erro ao extrair dados da linha: {e}")
+                continue
+        
+        # Tenta avançar para a próxima página
+        botao_proximo = encontrar_botao_proxima_pagina(frame)
+        if botao_proximo and botao_proximo.is_visible() and botao_proximo.is_enabled():
+            print(f"[➡️] Passando para a próxima página...")
+            try:
+                # Pega o primeiro registro da página atual para usar como referência
+                primeiro_registro_ref = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
+                
+                # Clica no botão
+                botao_proximo.click()
+
+                # Espera até que o primeiro registro da página seja diferente
+                for _ in range(60): # Tenta por até 30 segundos
+                    time.sleep(0.5)
+                    try:
+                        novo_primeiro_registro = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
+                        if novo_primeiro_registro != primeiro_registro_ref:
+                            print("✅ Nova página carregada com sucesso!")
+                            break
+                    except:
+                        continue
+                else:
+                    # Se o loop terminar sem encontrar um novo registro, significa que a página não mudou
+                    print("[❌] A página não foi carregada com novos dados. Interrompendo a extração.")
+                    break
+
+                pagina_atual += 1
+            except Exception as e:
+                print(f"[❌] Erro ao avançar para a próxima página: {e}")
+                break
+        else:
+            print("[⏹️] Fim da paginação. Todos os números extraídos.")
+            break
             
-        except Exception as e:
-            print(f"[❌] Erro ao extrair dados da linha {i}: {e}")
-            continue
-            
-    print(f"✅ Extração concluída. {len(solicitacoes)} solicitações encontradas.")
-    return solicitacoes
+    print(f"✅ Extração concluída. {len(todos_numeros)} solicitações únicas encontradas.")
+    return list(todos_numeros)
 
 def main():
     """
@@ -220,16 +249,18 @@ def main():
             if tarefa_frame:
                 if clicar_pesquisar(tarefa_frame):
                     if alterar_registros_por_pagina(tarefa_frame):
-                        # Extrai a primeira página de 50 registros
-                        numeros_solicitacoes = extrair_solicitacoes(tarefa_frame)
-                        print("Números capturados na primeira página:", numeros_solicitacoes)
+                        numeros_extraidos = extrair_todos_numeros_solicitacoes(tarefa_frame)
+                        print(f"✅ Extração de números de solicitação concluída. Total: {len(numeros_extraidos)}.")
                         
-                        # --- Chamando a função para passar de página ---
-                        if passar_para_proxima_pagina(tarefa_frame):
-                            # Extrai os registros da próxima página (exemplo)
-                            numeros_proxima_pagina = extrair_solicitacoes(tarefa_frame)
-                            print("Números capturados na segunda página:", numeros_proxima_pagina)
-                        # ----------------------------------------------
+                        # Salva a lista de números extraídos em um arquivo JSON
+                        if numeros_extraidos:
+                            try:
+                                with open("numeros_solicitacoes.json", "w", encoding="utf-8") as f:
+                                    json.dump(numeros_extraidos, f, ensure_ascii=False, indent=2)
+                                print("\n💾 Números salvos com sucesso em 'numeros_solicitacoes.json'.")
+                            except Exception as e:
+                                print(f"\n❌ Erro ao salvar o arquivo JSON: {e}")
+
                     else:
                         print("❌ Não foi possível alterar o número de registros por página.")
                 else:
