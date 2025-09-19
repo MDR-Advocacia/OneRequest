@@ -83,7 +83,6 @@ def main():
             
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             
-            # --- Início da nova lógica de coleta detalhada ---
             print("\n📂 Carregando números de solicitação do arquivo...")
             try:
                 with open("numeros_solicitacoes.json", "r", encoding="utf-8") as f:
@@ -95,45 +94,69 @@ def main():
             
             dados_detalhados = []
             
-            for i, numero_completo in enumerate(numeros_solicitacoes):
+            for i, numero_completo_original in enumerate(numeros_solicitacoes[:1]): 
                 try:
-                    # Usando regex para extrair o ano e o número
-                    match = re.match(r"(\d{4})\/(\d{10})", numero_completo)
+                    match = re.match(r"(\d{4})\/(\d{10})", numero_completo_original)
                     if not match:
-                        print(f"⚠️ Formato de número inválido: {numero_completo}. Pulando.")
+                        print(f"⚠️ Formato de número inválido: {numero_completo_original}. Pulando.")
                         continue
                     
                     ano = match.group(1)
                     numero = match.group(2)
                     
-                    print(f"\n[🔄] {i+1}/{len(numeros_solicitacoes)} - Acessando detalhes para o número: {numero_completo}")
+                    print(f"\n[🔄] {i+1}/{len(numeros_solicitacoes)} - Acessando detalhes para o número: {numero_completo_original}")
                     
                     url_detalhada = f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?buscaRapidaProcesso=busca_solicitacoes&anoProcesso=&numeroProcesso=&numeroVariacaoProcesso=&anoProcesso=&numeroProcesso=&numeroVariacaoProcesso=&numeroTombo=&numeroCpf=&numeroCnpj=&nomePessoa=&nomePessoaParte=&nomeFantasia=&nomeFantasiaParte=&anoSolicitacaoBuscaRapida={ano}&numeroSolicitacaoBuscaRapida={numero}&anoOficioBuscaRapida=&numeroOficioBuscaRapida="
                     
                     portal_page.goto(url_detalhada, timeout=60000, wait_until="domcontentloaded")
                     
-                    # Esperar por um elemento específico da página de detalhes para garantir o carregamento
-                    portal_page.wait_for_selector('span#paj_app_titulo.app-titulo', timeout=20000)
+                    portal_page.wait_for_selector('h2.left:has-text("Solicitação : Detalhamento")', timeout=20000)
                     print("✅ Página de detalhes carregada com sucesso!")
                     
-                    # --- COMENTÁRIO: Adicione a lógica de extração de dados aqui ---
-                    # Você pode usar a variável `portal_page` para interagir com a página.
-                    # Exemplo: dados_encontrados = portal_page.locator('seu-seletor-aqui').inner_text()
-                    # Salve os dados em um dicionário e adicione a lista `dados_detalhados`.
-                    # Exemplo: dados_detalhados.append({"numero": numero_completo, "campo_exemplo": dados_encontrados})
+                    # ###############################################################
+                    # ## INÍCIO - LÓGICA DE EXTRAÇÃO DE DADOS                      ##
+                    # ###############################################################
                     
-                    time.sleep(random.uniform(2, 5)) # Pequeno tempo de espera para simular o comportamento humano
+                    print("    - Extraindo dados da página...")
+                    
+                    # Extração da primeira div
+                    numero_solicitacao_raw = portal_page.locator('span.info_tarefa_label_numero:has-text("Nº da solicitação:") + span.info_tarefa_numero').inner_text()
+                    titulo = portal_page.locator('div.left:has(span:has-text("Título:")) span.info_tarefa_label').inner_text()
+
+                    # Extração da segunda div (form_menu)
+                    npj_direcionador = portal_page.locator('label.label_padrao:has-text("NPJ Direcionador:") + span span.content').inner_text()
+                    prazo = portal_page.locator('label.label_padrao:has-text("Prazo:") + span span.content').inner_text()
+
+                    dados_solicitacao = {
+                        "numero_solicitacao": numero_solicitacao_raw.replace("DMI - ", "").strip(),
+                        "titulo": titulo.strip(),
+                        "npj_direcionador": npj_direcionador.strip(),
+                        "prazo": prazo.strip(),
+                    }
+
+                    dados_detalhados.append(dados_solicitacao)
+                    print(f"    - Dados extraídos: {dados_solicitacao}")
+                    
+                    # ###############################################################
+                    # ## FIM - LÓGICA DE EXTRAÇÃO DE DADOS                         ##
+                    # ###############################################################
+
+                    time.sleep(2)
                 
                 except Exception as e:
                     print(f"\n========================= ERRO =========================")
-                    print(f"Ocorreu uma falha ao processar {numero_completo}: {e}")
+                    print(f"Ocorreu uma falha ao processar {numero_completo_original}: {e}")
                     print("========================================================")
             
             print("\n🏁 Fim da coleta de dados detalhados.")
 
-            # --- COMENTÁRIO: Adicione a lógica para salvar os dados_detalhados em um arquivo JSON aqui ---
-            # Exemplo: with open("dados_detalhados.json", "w", encoding="utf-8") as f:
-            #            json.dump(dados_detalhados, f, ensure_ascii=False, indent=2)
+            if dados_detalhados:
+                try:
+                    with open("dados_detalhados.json", "w", encoding="utf-8") as f:
+                        json.dump(dados_detalhados, f, ensure_ascii=False, indent=4)
+                    print("\n[💾] Dados detalhados salvos com sucesso em 'dados_detalhados.json'.")
+                except Exception as e:
+                    print(f"\n[❌] Erro ao salvar o arquivo JSON de detalhes: {e}")
 
     except Exception as e:
         print("\n========================= ERRO CRÍTICO =========================")
