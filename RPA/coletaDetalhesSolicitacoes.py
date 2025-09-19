@@ -83,13 +83,18 @@ def main():
             
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             
+            print("\n▶️  Iniciando a limpeza seletiva de cookies...")
+            context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
+            context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
+            print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
+            
             print("\n📂 Carregando números de solicitação do arquivo...")
             try:
                 with open("numeros_solicitacoes.json", "r", encoding="utf-8") as f:
                     numeros_solicitacoes = json.load(f)
                 print(f"✅ {len(numeros_solicitacoes)} números de solicitação encontrados.")
             except FileNotFoundError:
-                print("❌ Arquivo 'numeros_solicitacoes.json' não encontrado. Certifique-se de executar o script anterior primeiro.")
+                print("❌ Arquivo 'numeros_solicitacoes.json' não encontrado.")
                 return
             
             dados_detalhados = []
@@ -113,17 +118,10 @@ def main():
                     portal_page.wait_for_selector('h2.left:has-text("Solicitação : Detalhamento")', timeout=20000)
                     print("✅ Página de detalhes carregada com sucesso!")
                     
-                    # ###############################################################
-                    # ## INÍCIO - LÓGICA DE EXTRAÇÃO DE DADOS                      ##
-                    # ###############################################################
+                    print("    - Extraindo dados da página principal...")
                     
-                    print("    - Extraindo dados da página...")
-                    
-                    # Extração da primeira div
                     numero_solicitacao_raw = portal_page.locator('span.info_tarefa_label_numero:has-text("Nº da solicitação:") + span.info_tarefa_numero').inner_text()
                     titulo = portal_page.locator('div.left:has(span:has-text("Título:")) span.info_tarefa_label').inner_text()
-
-                    # Extração da segunda div (form_menu)
                     npj_direcionador = portal_page.locator('label.label_padrao:has-text("NPJ Direcionador:") + span span.content').inner_text()
                     prazo = portal_page.locator('label.label_padrao:has-text("Prazo:") + span span.content').inner_text()
 
@@ -138,17 +136,24 @@ def main():
                     print(f"    - Dados extraídos: {dados_solicitacao}")
                     
                     # ###############################################################
-                    # ## FIM - LÓGICA DE EXTRAÇÃO DE DADOS                         ##
+                    # ## INÍCIO - APENAS CLICAR PARA ABRIR O POPUP                 ##
                     # ###############################################################
-
-                    time.sleep(2)
+                    print("\n    - Clicando em 'Visualizar Solicitação' para abrir o popup...")
+                    
+                    # Clica no link para abrir a nova janela. Não há necessidade de capturá-la agora.
+                    portal_page.locator("#detalhar\\:j_id106").click()
+                    
+                    print("✅ Link clicado. O popup deve estar abrindo.")
+                    # ###############################################################
+                    # ## FIM - APENAS CLICAR PARA ABRIR O POPUP                    ##
+                    # ###############################################################
                 
                 except Exception as e:
                     print(f"\n========================= ERRO =========================")
                     print(f"Ocorreu uma falha ao processar {numero_completo_original}: {e}")
                     print("========================================================")
             
-            print("\n🏁 Fim da coleta de dados detalhados.")
+            print("\n🏁 Fim da coleta de dados detalhados. O script aguardará sua ação para fechar.")
 
             if dados_detalhados:
                 try:
