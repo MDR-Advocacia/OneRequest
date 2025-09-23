@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ titulo }}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>{{ titulo }}</h1>
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">Nome de Usuário</label>
+                <input type="text" class="form-control" id="name" name="name" value="{{ usuario['name'] if usuario else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Senha</label>
+                <input type="password" class="form-control" id="password" name="password" {% if not usuario %}required{% endif %}>
+                {% if usuario %}
+                <small class="form-text text-muted">Deixe em branco para não alterar a senha.</small>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label for="role">Papel</label>
+                <select class="form-control" id="role" name="role">
+                    <option value="user" {% if usuario and usuario['role'] == 'user' %}selected{% endif %}>Usuário</option>
+                    <option value="admin" {% if usuario and usuario['role'] == 'admin' %}selected{% endif %}>Admin</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-success">Salvar</button>
+            <a href="{{ url_for('listar_usuarios') }}" class="btn btn-secondary">Cancelar</a>
+        </form>
+    </div>
+</body>
+</html>

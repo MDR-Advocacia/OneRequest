@@ -9,7 +9,7 @@
         .container { max-width: 1600px; margin: 2em auto; padding: 2em; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
         h1 { color: #343a40; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 8px 10px; border: 1px solid #dee2e6; text-align: left; vertical-align: middle; } /* vertical-align: middle */
+        th, td { padding: 8px 10px; border: 1px solid #dee2e6; text-align: left; vertical-align: middle; }
         thead { background-color: #007bff; color: white; }
         tbody tr:nth-child(even) { background-color: #f2f2f2; }
         .texto-dmi { white-space: pre-wrap; font-family: monospace; font-size: 0.875em; max-height: 150px; overflow-y: auto; display: block; }
@@ -22,7 +22,16 @@
 </head>
 <body>
     <div class="container">
-        <h1>Painel de Controle - OneRequest</h1>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h1>Painel de Controle - OneRequest</h1>
+            <div>
+                <span class="mr-3">Olá, {{ current_user.name }} ({{ current_user.role }})</span>
+                {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('listar_usuarios') }}" class="btn btn-info">Gerenciar Usuários</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn btn-danger">Sair</a>
+            </div>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -82,29 +91,18 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Seleciona todos os campos de formulário na tabela
             const inputs = document.querySelectorAll('tbody .form-control');
-
-            // Adiciona um 'ouvinte' a cada campo
             inputs.forEach(input => {
                 input.addEventListener('change', () => {
-                    const row = input.closest('tr'); // Encontra a linha (tr) pai do campo alterado
-                    const id = row.dataset.id; // Pega o número da solicitação que guardamos no 'data-id'
-
-                    // Pega os valores atuais dos 3 campos daquela linha
+                    const row = input.closest('tr');
+                    const id = row.dataset.id;
                     const responsavel = row.querySelector('[name="responsavel"]').value;
                     const anotacao = row.querySelector('[name="anotacao"]').value;
                     const status = row.querySelector('[name="status"]').value;
-                    
-                    // Mostra um feedback visual de que está salvando
                     row.classList.add('saving');
-
-                    // Envia os dados para o nosso servidor Flask
                     fetch('/atualizar', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: {'Content-Type': 'application/json',},
                         body: JSON.stringify({
                             numero_solicitacao: id,
                             responsavel: responsavel,
@@ -115,7 +113,6 @@
                     .then(response => response.json())
                     .then(data => {
                         console.log('Sucesso:', data);
-                        // Remove o feedback visual após salvar
                         setTimeout(() => row.classList.remove('saving'), 500);
                     })
                     .catch(error => {
