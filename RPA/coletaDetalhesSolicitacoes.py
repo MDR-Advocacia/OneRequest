@@ -131,29 +131,45 @@ def main():
                         "npj_direcionador": npj_direcionador.strip(),
                         "prazo": prazo.strip(),
                     }
+                    
+                    print("\n    - Preparando para capturar o popup...")
+                    
+                    with context.expect_event("page") as popup_info:
+                        print("    - Clicando em 'Visualizar Solicitação'...")
+                        portal_page.locator("#detalhar\\:j_id106").click()
 
+                    popup_page = popup_info.value
+                    print("✅ Popup capturado com sucesso!")
+                    
+                    print("    - Aguardando o popup carregar completamente...")
+                    popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
+                    print("✅ Popup carregado.")
+                    
+                    print("    - Extraindo Texto da DMI do popup...")
+                    
+                    # ###############################################################
+                    # ## INÍCIO - CORREÇÃO DO ERRO                                 ##
+                    # ###############################################################
+                    texto_dmi = popup_page.locator("div.print").first.inner_text()
+                    # ###############################################################
+                    # ## FIM - CORREÇÃO DO ERRO                                    ##
+                    # ###############################################################
+
+                    dados_solicitacao["texto_dmi"] = texto_dmi.strip()
+                    print("    - Texto da DMI extraído com sucesso.")
+
+                    print("    - Fechando o popup.")
+                    popup_page.close()
+                    
                     dados_detalhados.append(dados_solicitacao)
-                    print(f"    - Dados extraídos: {dados_solicitacao}")
-                    
-                    # ###############################################################
-                    # ## INÍCIO - APENAS CLICAR PARA ABRIR O POPUP                 ##
-                    # ###############################################################
-                    print("\n    - Clicando em 'Visualizar Solicitação' para abrir o popup...")
-                    
-                    # Clica no link para abrir a nova janela. Não há necessidade de capturá-la agora.
-                    portal_page.locator("#detalhar\\:j_id106").click()
-                    
-                    print("✅ Link clicado. O popup deve estar abrindo.")
-                    # ###############################################################
-                    # ## FIM - APENAS CLICAR PARA ABRIR O POPUP                    ##
-                    # ###############################################################
+                    print(f"\n    - DADOS FINAIS COLETADOS: {json.dumps(dados_solicitacao, indent=2, ensure_ascii=False)}")
                 
                 except Exception as e:
                     print(f"\n========================= ERRO =========================")
                     print(f"Ocorreu uma falha ao processar {numero_completo_original}: {e}")
                     print("========================================================")
             
-            print("\n🏁 Fim da coleta de dados detalhados. O script aguardará sua ação para fechar.")
+            print("\n🏁 Fim da coleta de dados detalhados.")
 
             if dados_detalhados:
                 try:
