@@ -18,8 +18,8 @@ CDP_ENDPOINT = "http://localhost:9222"
 
 def main():
     """
-    Função principal que orquestra a automação para acessar a página detalhada
-    de cada número de solicitação.
+    Função principal que orquestra a automação, combinando extração da página,
+    do popup e consulta à API via navegação.
     """
     browser_process = None
     try:
@@ -119,7 +119,6 @@ def main():
                     print("✅ Página de detalhes carregada com sucesso!")
                     
                     print("    - Extraindo dados da página principal...")
-                    
                     numero_solicitacao_raw = portal_page.locator('span.info_tarefa_label_numero:has-text("Nº da solicitação:") + span.info_tarefa_numero').inner_text()
                     titulo = portal_page.locator('div.left:has(span:has-text("Título:")) span.info_tarefa_label').inner_text()
                     npj_direcionador = portal_page.locator('label.label_padrao:has-text("NPJ Direcionador:") + span span.content').inner_text()
@@ -133,34 +132,57 @@ def main():
                     }
                     
                     print("\n    - Preparando para capturar o popup...")
-                    
                     with context.expect_event("page") as popup_info:
                         print("    - Clicando em 'Visualizar Solicitação'...")
                         portal_page.locator("#detalhar\\:j_id106").click()
 
                     popup_page = popup_info.value
                     print("✅ Popup capturado com sucesso!")
-                    
-                    print("    - Aguardando o popup carregar completamente...")
                     popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
                     print("✅ Popup carregado.")
                     
                     print("    - Extraindo Texto da DMI do popup...")
-                    
-                    # ###############################################################
-                    # ## INÍCIO - CORREÇÃO DO ERRO                                 ##
-                    # ###############################################################
                     texto_dmi = popup_page.locator("div.print").first.inner_text()
-                    # ###############################################################
-                    # ## FIM - CORREÇÃO DO ERRO                                    ##
-                    # ###############################################################
-
                     dados_solicitacao["texto_dmi"] = texto_dmi.strip()
-                    print("    - Texto da DMI extraído com sucesso.")
-
-                    print("    - Fechando o popup.")
+                    print("    - Texto da DMI extraído. Fechando o popup.")
                     popup_page.close()
+
+                    # ###############################################################
+                    # ## INÍCIO - CONSULTA À API VIA NAVEGAÇÃO EM NOVA ABA         ##
+                    # ###############################################################
+                    print("\n    - Consultando API via navegação para obter dados do processo...")
                     
+                    npj_base = dados_solicitacao["npj_direcionador"].split('-')[0]
+                    npj_limpo = npj_base.replace('/', '')
+                    api_url = f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}"
+                    
+                    print(f"    - Abrindo nova aba para a URL: {api_url}")
+                    api_page = context.new_page()
+                    api_response = api_page.goto(api_url)
+
+                    if api_response.ok:
+                        print("    - Resposta da API recebida com sucesso.")
+                        api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
+                        
+                        numero_processo = api_data.get("data", {}).get("textoNumeroExternoProcesso", "Não encontrado")
+                        polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
+                        polo_map = {"A": "Ativo", "P": "Passivo"}
+                        polo = polo_map.get(polo_indicador, "Não definido")
+                        
+                        dados_solicitacao["numero_processo"] = numero_processo
+                        dados_solicitacao["polo"] = polo
+                        print("    - Dados da API extraídos com sucesso!")
+                    else:
+                        print(f"    - ❌ Falha ao consultar a API: Status {api_response.status}")
+                        dados_solicitacao["numero_processo"] = "Erro na API"
+                        dados_solicitacao["polo"] = "Erro na API"
+                    
+                    print("    - Fechando aba da API.")
+                    api_page.close()
+                    # ###############################################################
+                    # ## FIM - CONSULTA À API                                      ##
+                    # ###############################################################
+
                     dados_detalhados.append(dados_solicitacao)
                     print(f"\n    - DADOS FINAIS COLETADOS: {json.dumps(dados_solicitacao, indent=2, ensure_ascii=False)}")
                 
