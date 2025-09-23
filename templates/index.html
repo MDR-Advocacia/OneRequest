@@ -6,18 +6,18 @@
     <title>Painel de Solicitações - OneRequest</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background-color: #f8f9fa; color: #212529; }
-        .container { max-width: 1200px; margin: 2em auto; padding: 2em; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
+        .container { max-width: 1600px; margin: 2em auto; padding: 2em; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
         h1 { color: #343a40; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px 15px; border: 1px solid #dee2e6; text-align: left; vertical-align: top; }
+        th, td { padding: 8px 10px; border: 1px solid #dee2e6; text-align: left; vertical-align: middle; } /* vertical-align: middle */
         thead { background-color: #007bff; color: white; }
         tbody tr:nth-child(even) { background-color: #f2f2f2; }
-        tbody tr:hover { background-color: #e9ecef; }
-        .texto-dmi { white-space: pre-wrap; font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 0.875em; max-height: 200px; overflow-y: auto; display: block; }
-        td { max-width: 300px; overflow-wrap: break-word; }
+        .texto-dmi { white-space: pre-wrap; font-family: monospace; font-size: 0.875em; max-height: 150px; overflow-y: auto; display: block; }
+        td { font-size: 0.9em; }
         .no-data { text-align: center; padding: 2em; color: #6c757d; }
-        /* Estilo para status de erro/aviso */
-        .status-info { color: #856404; background-color: #fff3cd; font-style: italic; font-size: 0.9em; }
+        .status-info { color: #856404; background-color: #fff3cd; font-style: italic; }
+        .form-control { width: 95%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; background-color: #fff; }
+        .saving { background-color: #ffc !important; }
     </style>
 </head>
 <body>
@@ -28,35 +28,105 @@
                 <tr>
                     <th>Recebido Em</th>
                     <th>Nº Solicitação</th>
-                    <th>Título</th>
                     <th>Nº Processo</th>
                     <th>Prazo</th>
                     <th>Polo</th>
+                    <th>Responsável</th>
+                    <th>Anotação</th>
+                    <th>Status</th>
                     <th>Texto DMI</th>
                 </tr>
             </thead>
             <tbody>
                 {% if solicitacoes %}
                     {% for item in solicitacoes %}
-                    <tr>
+                    <tr data-id="{{ item['numero_solicitacao'] }}">
                         <td>{{ item['recebido_em'] }}</td>
                         <td>{{ item['numero_solicitacao'] }}</td>
-                        <td>{{ item['titulo'] }}</td>
-                        <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower or 'n/a' in item['polo']|lower %} class="status-info" {% endif %}>
+                        <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %} class="status-info" {% endif %}>
                             {{ item['numero_processo'] }}
                         </td>
                         <td>{{ item['prazo'] }}</td>
                         <td>{{ item['polo'] }}</td>
+                        <td>
+                            <select class="form-control" name="responsavel">
+                                <option value="N/A" {% if item['responsavel'] == 'N/A' %}selected{% endif %}>-- Selecione --</option>
+                                {% for usuario in usuarios %}
+                                    <option value="{{ usuario['name'] }}" {% if item['responsavel'] == usuario['name'] %}selected{% endif %}>
+                                        {{ usuario['name'] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" class="form-control" name="anotacao" placeholder="[Anotação]" value="{{ item['anotacao'] }}">
+                        </td>
+                        <td>
+                            <select class="form-control" name="status">
+                                <option value="Não" {% if item['status'] == 'Não' %}selected{% endif %}>Não</option>
+                                <option value="Sim" {% if item['status'] == 'Sim' %}selected{% endif %}>Sim</option>
+                                <option value="LegalOne?" {% if item['status'] == 'LegalOne?' %}selected{% endif %}>LegalOne?</option>
+                            </select>
+                        </td>
                         <td><div class="texto-dmi">{{ item['texto_dmi'] }}</div></td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="7" class="no-data">Nenhuma solicitação encontrada no banco de dados. Execute o robô de coleta primeiro.</td>
+                        <td colspan="9" class="no-data">Nenhuma solicitação encontrada.</td>
                     </tr>
                 {% endif %}
             </tbody>
         </table>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Seleciona todos os campos de formulário na tabela
+            const inputs = document.querySelectorAll('tbody .form-control');
+
+            // Adiciona um 'ouvinte' a cada campo
+            inputs.forEach(input => {
+                input.addEventListener('change', () => {
+                    const row = input.closest('tr'); // Encontra a linha (tr) pai do campo alterado
+                    const id = row.dataset.id; // Pega o número da solicitação que guardamos no 'data-id'
+
+                    // Pega os valores atuais dos 3 campos daquela linha
+                    const responsavel = row.querySelector('[name="responsavel"]').value;
+                    const anotacao = row.querySelector('[name="anotacao"]').value;
+                    const status = row.querySelector('[name="status"]').value;
+                    
+                    // Mostra um feedback visual de que está salvando
+                    row.classList.add('saving');
+
+                    // Envia os dados para o nosso servidor Flask
+                    fetch('/atualizar', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            numero_solicitacao: id,
+                            responsavel: responsavel,
+                            anotacao: anotacao,
+                            status: status
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Sucesso:', data);
+                        // Remove o feedback visual após salvar
+                        setTimeout(() => row.classList.remove('saving'), 500);
+                    })
+                    .catch(error => {
+                        console.error('Erro:', error);
+                        row.classList.remove('saving');
+                        alert('Não foi possível salvar os dados.');
+                    });
+                });
+            });
+        });
+    </script>
+
 </body>
 </html>

@@ -1,44 +1,49 @@
-from flask import Flask, render_template, g
+from flask import Flask, render_template, request, jsonify
 import sqlite3
 import os
 
-# --- Configuração ---
-# Aponta para o arquivo do banco de dados que está na pasta 'bd'
-DATABASE = os.path.join(os.path.dirname(__file__), 'bd', 'solicitacoes.db')
+# Importa as funções do nosso módulo de bd
+from bd import database
+
 app = Flask(__name__)
 
-# --- Conexão com o Banco de Dados ---
-def get_db():
-    """Abre uma nova conexão com o banco de dados se não houver uma."""
-    db = getattr(g, '_database', None)
-    if db is None:
-        db = g._database = sqlite3.connect(DATABASE)
-        # Retorna as linhas como dicionários para facilitar o uso no template
-        db.row_factory = sqlite3.Row
-    return db
-
-@app.teardown_appcontext
-def close_connection(exception):
-    """Fecha a conexão com o banco de dados ao final da requisição."""
-    db = getattr(g, '_database', None)
-    if db is not None:
-        db.close()
-
-# --- Rotas da Aplicação ---
+# --- Rota Principal (Painel) ---
 @app.route('/')
 def index():
-    """Busca todas as solicitações do banco de dados e exibe no painel."""
-    db = get_db()
-    cursor = db.cursor()
-    # Ordena pelas mais recentes primeiro
+    """Busca todas as solicitações e a lista de usuários para exibir no painel."""
+    conn_solicitacoes = sqlite3.connect(database.DB_SOLICITACOES)
+    conn_solicitacoes.row_factory = sqlite3.Row
+    cursor = conn_solicitacoes.cursor()
     cursor.execute("SELECT * FROM solicitacoes ORDER BY id DESC")
     solicitacoes = cursor.fetchall()
+    conn_solicitacoes.close()
+
+    usuarios = database.obter_usuarios_legal_one()
     
-    # Renderiza o template HTML, passando a lista de solicitações
-    return render_template('index.html', solicitacoes=solicitacoes)
+    return render_template('index.html', solicitacoes=solicitacoes, usuarios=usuarios)
+
+# --- Rota da API para Atualizar Dados ---
+@app.route('/atualizar', methods=['POST'])
+def atualizar():
+    """Recebe os dados do painel e atualiza o banco de dados."""
+    try:
+        dados = request.json
+        num_solicitacao = dados.get('numero_solicitacao')
+        responsavel = dados.get('responsavel')
+        anotacao = dados.get('anotacao')
+        status = dados.get('status')
+        
+        if not num_solicitacao:
+            return jsonify({'status': 'erro', 'mensagem': 'Número da solicitação não fornecido.'}), 400
+
+        database.atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status)
+        
+        return jsonify({'status': 'sucesso', 'mensagem': 'Solicitação atualizada com sucesso!'})
+    except Exception as e:
+        print(f"ERRO na rota /atualizar: {e}")
+        return jsonify({'status': 'erro', 'mensagem': 'Ocorreu um erro no servidor.'}), 500
 
 if __name__ == '__main__':
-    # Cria a pasta 'templates' se ela não existir
     if not os.path.exists('templates'):
         os.makedirs('templates')
         
