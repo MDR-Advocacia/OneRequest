@@ -5,15 +5,26 @@ from playwright.sync_api import sync_playwright, Page, Frame
 import json
 import random
 
+# ###############################################################
+# ## INÍCIO - AJUSTE DE IMPORTAÇÃO                             ##
+# ###############################################################
+import sys
+import os
+
+# Adiciona o diretório raiz do projeto (onerequest) ao path do Python
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+# Agora podemos importar o módulo da pasta 'bd'
+from bd import database
+# ###############################################################
+# ## FIM - AJUSTE DE IMPORTAÇÃO                                ##
+# ###############################################################
+
+
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
-
-# 1. URL da sua extensão.
 EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
-
-# 2. Nome exato do seu arquivo .bat.
 BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
-
-# 3. Porta de depuração.
 CDP_ENDPOINT = "http://localhost:9222"
 
 def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
@@ -87,7 +98,6 @@ def encontrar_botao_proxima_pagina(frame):
     Localiza o botão de próxima página (seta para a direita).
     """
     try:
-        # Tenta localizar o botão pela classe de ícone
         botao_proximo = frame.locator('a.mi--chevron-right')
         if botao_proximo.is_visible() and botao_proximo.is_enabled():
             return botao_proximo
@@ -107,7 +117,6 @@ def extrair_todos_numeros_solicitacoes(frame):
     while True:
         print(f"[📄] Lendo página {pagina_atual}...")
         
-        # O seletor para as linhas é o mesmo do código original
         linhas = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').all()
         
         if not linhas:
@@ -116,7 +125,6 @@ def extrair_todos_numeros_solicitacoes(frame):
             
         for linha in linhas:
             try:
-                # Extrai apenas o número da solicitação da primeira célula de cada linha
                 celula_numero = linha.locator('td').first
                 link_numero = celula_numero.locator('a').first
                 numero = link_numero.inner_text().strip()
@@ -128,19 +136,15 @@ def extrair_todos_numeros_solicitacoes(frame):
                 print(f"[❌] Erro ao extrair dados da linha: {e}")
                 continue
         
-        # Tenta avançar para a próxima página
         botao_proximo = encontrar_botao_proxima_pagina(frame)
         if botao_proximo and botao_proximo.is_visible() and botao_proximo.is_enabled():
             print(f"[➡️] Passando para a próxima página...")
             try:
-                # Pega o primeiro registro da página atual para usar como referência
                 primeiro_registro_ref = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
                 
-                # Clica no botão
                 botao_proximo.click()
 
-                # Espera até que o primeiro registro da página seja diferente
-                for _ in range(60): # Tenta por até 30 segundos
+                for _ in range(60): 
                     time.sleep(0.5)
                     try:
                         novo_primeiro_registro = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
@@ -150,7 +154,6 @@ def extrair_todos_numeros_solicitacoes(frame):
                     except:
                         continue
                 else:
-                    # Se o loop terminar sem encontrar um novo registro, significa que a página não mudou
                     print("[❌] A página não foi carregada com novos dados. Interrompendo a extração.")
                     break
 
@@ -169,6 +172,8 @@ def main():
     """
     Função principal que orquestra toda a automação, do início ao fim.
     """
+    database.inicializar_banco()
+
     browser_process = None
     try:
         print(f"▶️  Executando o script: {BAT_FILE_PATH}")
@@ -200,66 +205,43 @@ def main():
             extension_page = context.pages[0] if context.pages else context.new_page()
             extension_page.goto(EXTENSION_URL)
             extension_page.wait_for_load_state("domcontentloaded")
-
             print("    - Localizando o campo de busca na extensão...")
             search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
             search_input.wait_for(state="visible", timeout=5000)
-
             print("    - Pesquisando por 'banco do'...")
             search_input.fill("banco do")
-
             with context.expect_event('page') as new_page_info:
                 print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-                login_button = extension_page.locator(
-                    'div[role="menuitem"]:not([disabled])', 
-                    has_text="Banco do Brasil - Intranet"
-                ).first
+                login_button = extension_page.locator('div[role="menuitem"]:not([disabled])', has_text="Banco do Brasil - Intranet").first
                 login_button.click(timeout=10000)
-
                 print("    - Clicando no botão de confirmação 'ACESSAR'...")
                 extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-            
             portal_page = new_page_info.value
             extension_page.close()
-            
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
-            
             print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
             portal_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
             portal_page.wait_for_selector('p:text("Portal Jurídico")')
-            
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
-            
             print("▶️  Iniciando a limpeza seletiva de cookies...")
-            all_cookies = context.cookies()
-            print(f"    Cookies antes da limpeza: {len(all_cookies)} cookies encontrados.")
-
-            print("    - Tentando remover o cookie 'JSESSIONID'...")
             context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
             context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-            
-            remaining_cookies = context.cookies()
-            print(f"    Cookies após a limpeza: {len(remaining_cookies)} cookies restantes.")
-            
             print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
-            
+
             tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
             
             if tarefa_frame:
                 if clicar_pesquisar(tarefa_frame):
                     if alterar_registros_por_pagina(tarefa_frame):
                         numeros_extraidos = extrair_todos_numeros_solicitacoes(tarefa_frame)
-                        print(f"✅ Extração de números de solicitação concluída. Total: {len(numeros_extraidos)}.")
                         
-                        # Salva a lista de números extraídos em um arquivo JSON
+
                         if numeros_extraidos:
-                            try:
-                                with open("numeros_solicitacoes.json", "w", encoding="utf-8") as f:
-                                    json.dump(numeros_extraidos, f, ensure_ascii=False, indent=2)
-                                print("\n💾 Números salvos com sucesso em 'numeros_solicitacoes.json'.")
-                            except Exception as e:
-                                print(f"\n❌ Erro ao salvar o arquivo JSON: {e}")
+                            print(f"\n[💾] Inserindo {len(numeros_extraidos)} novas solicitações no banco de dados...")
+                            database.inserir_novas_solicitacoes(numeros_extraidos)
+                            print("✅ Novas solicitações inseridas com sucesso.")
+
 
                     else:
                         print("❌ Não foi possível alterar o número de registros por página.")
@@ -267,10 +249,10 @@ def main():
                     print("❌ Não foi possível realizar a pesquisa. O script será encerrado.")
             else:
                 print("❌ Não foi possível encontrar o botão de pesquisa. O script será encerrado.")
-                raise Exception("Botão 'Pesquisar' não encontrado dentro de um frame.")
+
             
     except Exception as e:
-        print("\n========================= ERRO =========================")
+        print(f"\n========================= ERRO =========================")
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
     finally:
