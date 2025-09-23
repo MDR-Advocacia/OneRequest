@@ -99,7 +99,7 @@ def main():
             
             dados_detalhados = []
             
-            for i, numero_completo_original in enumerate(numeros_solicitacoes[:1]): 
+            for i, numero_completo_original in enumerate(numeros_solicitacoes): 
                 try:
                     match = re.match(r"(\d{4})\/(\d{10})", numero_completo_original)
                     if not match:
