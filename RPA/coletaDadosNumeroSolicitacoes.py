@@ -165,12 +165,12 @@ def extrair_todos_numeros_solicitacoes(frame):
             print("[⏹️] Fim da paginação. Todos os números extraídos.")
             break
             
-    print(f"✅ Extração concluída. {len(todos_numeros)} solicitações únicas encontradas.")
+    print(f"✅ Extração concluída. {len(todos_numeros)} solicitações ativas encontradas no portal.")
     return list(todos_numeros)
 
 def main():
     """
-    Função principal que orquestra toda a automação, do início ao fim.
+    Função principal que orquestra a coleta de números e a sincronização de status.
     """
     database.inicializar_banco()
 
@@ -234,14 +234,21 @@ def main():
             if tarefa_frame:
                 if clicar_pesquisar(tarefa_frame):
                     if alterar_registros_por_pagina(tarefa_frame):
-                        numeros_extraidos = extrair_todos_numeros_solicitacoes(tarefa_frame)
+                        numeros_atuais_portal = set(extrair_todos_numeros_solicitacoes(tarefa_frame))
                         
+                        # --- Lógica de Sincronização ---
+                        print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
+                        numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
 
-                        if numeros_extraidos:
-                            print(f"\n[💾] Inserindo {len(numeros_extraidos)} novas solicitações no banco de dados...")
-                            database.inserir_novas_solicitacoes(numeros_extraidos)
-                            print("✅ Novas solicitações inseridas com sucesso.")
+                        # 1. Encontra as que foram respondidas
+                        respondidas = list(numeros_abertos_db - numeros_atuais_portal)
+                        if respondidas:
+                            database.marcar_como_respondidas(respondidas)
+                            print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
 
+                        # 2. Insere as novas
+                        database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
+                        print(f"✅ Novas solicitações inseridas/verificadas no banco de dados.")
 
                     else:
                         print("❌ Não foi possível alterar o número de registros por página.")
@@ -249,7 +256,6 @@ def main():
                     print("❌ Não foi possível realizar a pesquisa. O script será encerrado.")
             else:
                 print("❌ Não foi possível encontrar o botão de pesquisa. O script será encerrado.")
-
             
     except Exception as e:
         print(f"\n========================= ERRO =========================")

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OneRequest{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/App.css') }}">
+</head>
+<body>
+    <div class="App">
+        <header class="App-header">
+            <img src="{{ url_for('static', filename='images/logo-onesid.png') }}" class="header-logo" alt="logo" />
+            
+            <nav class="main-nav">
+                <a href="{{ url_for('index') }}">Solicitações Abertas</a>
+                <a href="{{ url_for('respondidas') }}">Solicitações Respondidas</a>
+            </nav>
+
+            <div class="user-info">
+                <span>Olá, {{ current_user.name }} ({{ current_user.role }})</span>
+                {% if current_user.role == 'admin' %}
+                    <a href="{{ url_for('listar_usuarios') }}"><button class="header-button">Gerenciar Usuários</button></a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}"><button class="header-button danger">Sair</button></a>
+            </div>
+        </header>
+
+        <main class="panel-container">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>

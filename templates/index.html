@@ -1,55 +1,95 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Solicitações - OneRequest</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background-color: #f8f9fa; color: #212529; }
-        .container { max-width: 1600px; margin: 2em auto; padding: 2em; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.05); }
-        h1 { color: #343a40; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 8px 10px; border: 1px solid #dee2e6; text-align: left; vertical-align: middle; }
-        thead { background-color: #007bff; color: white; }
-        tbody tr:nth-child(even) { background-color: #f2f2f2; }
-        .texto-dmi { white-space: pre-wrap; font-family: monospace; font-size: 0.875em; max-height: 150px; overflow-y: auto; display: block; }
-        td { font-size: 0.9em; }
-        .no-data { text-align: center; padding: 2em; color: #6c757d; }
-        .status-info { color: #856404; background-color: #fff3cd; font-style: italic; }
-        .form-control { width: 95%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; background-color: #fff; }
-        .saving { background-color: #ffc !important; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h1>Painel de Controle - OneRequest</h1>
-            <div>
-                <span class="mr-3">Olá, {{ current_user.name }} ({{ current_user.role }})</span>
-                {% if current_user.role == 'admin' %}
-                <a href="{{ url_for('listar_usuarios') }}" class="btn btn-info">Gerenciar Usuários</a>
-                {% endif %}
-                <a href="{{ url_for('logout') }}" class="btn btn-danger">Sair</a>
+{% extends "base.html" %}
+{% block title %}Painel de Solicitações - OneRequest{% endblock %}
+
+{% block content %}
+<section class="kpi-section">
+    <div class="kpi-card vencidas">
+        <h3>Vencidas</h3>
+        <p>{{ kpis.vencidas }}</p>
+    </div>
+    <div class="kpi-card hoje">
+        <h3>Vencem Hoje</h3>
+        <p>{{ kpis.hoje }}</p>
+    </div>
+    <div class="kpi-card amanha">
+        <h3>Vencem Amanhã</h3>
+        <p>{{ kpis.amanha }}</p>
+    </div>
+    <div class="kpi-card futuras">
+        <h3>Futuras</h3>
+        <p>{{ kpis.futuras }}</p>
+    </div>
+</section>
+
+<section class="results-section">
+    <div class="chart-header">
+        <h2>Recebimentos</h2>
+        <span id="total-recebimentos" class="total-badge">Total: 0</span>
+    </div>
+    <div class="chart-container">
+        <canvas id="recebimentosChart"></canvas>
+    </div>
+</section>
+
+<section class="input-section">
+    <h2>Filtros e Ações</h2>
+    <form method="GET" action="{{ url_for('index') }}" class="filter-form" id="filter-form">
+        <div class="filter-group">
+            <div class="form-field">
+                <label>Responsável</label>
+                <select name="responsavel" class="form-control">
+                    <option value="">Todos</option>
+                    {% for usuario in usuarios %}
+                        <option value="{{ usuario['name'] }}" {% if filters.responsavel == usuario['name'] %}selected{% endif %}>
+                            {{ usuario['name'] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Busca (Tabela)</label>
+                <input type="text" name="busca" class="form-control" placeholder="Palavra-chave ou número" value="{{ filters.busca }}">
+            </div>
+            <div class="form-field">
+                <label>Data Início (Gráfico)</label>
+                <input type="date" name="data_inicio_grafico" id="data-inicio-grafico" class="form-control" value="{{ filters.data_inicio_grafico }}">
+            </div>
+            <div class="form-field">
+                <label>Data Fim (Gráfico)</label>
+                <input type="date" name="data_fim_grafico" id="data-fim-grafico" class="form-control" value="{{ filters.data_fim_grafico }}">
             </div>
         </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Recebido Em</th>
-                    <th>Nº Solicitação</th>
-                    <th>Nº Processo</th>
-                    <th>Prazo</th>
-                    <th>Polo</th>
-                    <th>Responsável</th>
-                    <th>Anotação</th>
-                    <th>Status</th>
-                    <th>Texto DMI</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% if solicitacoes %}
-                    {% for item in solicitacoes %}
+        <div class="action-group">
+            <a href="{{ url_for('exportar') }}" class="action-button export">Exportar Pendentes ({{ solicitacoes|length }})</a>
+            <button type="submit" class="action-button filter">Filtrar</button>
+        </div>
+    </form>
+</section>
+
+<section class="results-section">
+    <h2>Solicitações Abertas ({{ solicitacoes|length }})</h2>
+    <table class="main-table">
+        <thead>
+            <tr>
+                <th class="col-farol">Farol</th>
+                <th class="col-recebido">Recebido Em</th>
+                <th class="col-solicitacao">Nº Solicitação</th>
+                <th class="col-processo">Nº Processo</th>
+                <th class="col-prazo">Prazo</th>
+                <th class="col-polo">Polo</th>
+                <th class="col-responsavel">Responsável</th>
+                <th class="col-anotacao">Anotação</th>
+                <th class="col-status">Status</th>
+                <th class="col-dmi">Texto DMI</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if solicitacoes %}
+                {% for item in solicitacoes %}
                     <tr data-id="{{ item['numero_solicitacao'] }}">
+                        <td>
+                            <span class="farol farol-{{ item['farol_status'] }}"></span>
+                        </td>
                         <td>{{ item['recebido_em'] }}</td>
                         <td>{{ item['numero_solicitacao'] }}</td>
                         <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %} class="status-info" {% endif %}>
@@ -79,51 +119,120 @@
                         </td>
                         <td><div class="texto-dmi">{{ item['texto_dmi'] }}</div></td>
                     </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="9" class="no-data">Nenhuma solicitação encontrada.</td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
-    </div>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="10" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</section>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const inputs = document.querySelectorAll('tbody .form-control');
-            inputs.forEach(input => {
-                input.addEventListener('change', () => {
-                    const row = input.closest('tr');
-                    const id = row.dataset.id;
-                    const responsavel = row.querySelector('[name="responsavel"]').value;
-                    const anotacao = row.querySelector('[name="anotacao"]').value;
-                    const status = row.querySelector('[name="status"]').value;
-                    row.classList.add('saving');
-                    fetch('/atualizar', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json',},
-                        body: JSON.stringify({
-                            numero_solicitacao: id,
-                            responsavel: responsavel,
-                            anotacao: anotacao,
-                            status: status
-                        })
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Script para salvar as alterações da tabela
+        const inputs = document.querySelectorAll('tbody .form-control');
+        inputs.forEach(input => {
+            input.addEventListener('change', () => {
+                const row = input.closest('tr');
+                const id = row.dataset.id;
+                const responsavel = row.querySelector('[name="responsavel"]').value;
+                const anotacao = row.querySelector('[name="anotacao"]').value;
+                const status = row.querySelector('[name="status"]').value;
+                row.style.transition = 'background-color 0.5s ease';
+                row.style.backgroundColor = 'rgba(91, 192, 222, 0.2)';
+                fetch('/atualizar', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json',},
+                    body: JSON.stringify({
+                        numero_solicitacao: id,
+                        responsavel: responsavel,
+                        anotacao: anotacao,
+                        status: status
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Sucesso:', data);
-                        setTimeout(() => row.classList.remove('saving'), 500);
-                    })
-                    .catch(error => {
-                        console.error('Erro:', error);
-                        row.classList.remove('saving');
-                        alert('Não foi possível salvar os dados.');
-                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Sucesso:', data);
+                    setTimeout(() => row.style.backgroundColor = '', 500);
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    row.style.backgroundColor = '';
+                    alert('Não foi possível salvar os dados.');
                 });
             });
         });
-    </script>
 
-</body>
-</html>
+        // Script para renderizar o gráfico
+        let recebimentosChart = null; // Variável para guardar a instância do gráfico
+
+        function renderizarGrafico() {
+            const dataInicio = document.getElementById('data-inicio-grafico').value;
+            const dataFim = document.getElementById('data-fim-grafico').value;
+            const apiUrl = `/api/recebimentos?inicio=${dataInicio}&fim=${dataFim}`;
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(apiData => {
+                    const ctx = document.getElementById('recebimentosChart').getContext('2d');
+                    document.getElementById('total-recebimentos').innerText = `Total: ${apiData.total}`;
+                    
+                    if(recebimentosChart) {
+                        recebimentosChart.destroy();
+                    }
+
+                    recebimentosChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: apiData.labels,
+                            datasets: [{
+                                label: 'Solicitações Recebidas',
+                                data: apiData.data,
+                                backgroundColor: 'rgba(91, 192, 222, 0.6)',
+                                borderColor: 'rgba(91, 192, 222, 1)',
+                                borderWidth: 1,
+                                borderRadius: 5
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { color: '#e0e0e0' },
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                },
+                                x: {
+                                    ticks: { color: '#e0e0e0' },
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            maintainAspectRatio: false
+                        }
+                    });
+                })
+                .catch(error => console.error('Erro ao buscar dados do gráfico:', error));
+        }
+
+        // Renderiza o gráfico quando a página carrega
+        renderizarGrafico();
+
+        // Atualiza o gráfico quando o formulário de filtro é submetido
+        const filterForm = document.getElementById('filter-form');
+        filterForm.addEventListener('submit', (event) => {
+            // A página vai recarregar por causa do submit, mas podemos
+            // redesenhar o gráfico com as novas datas que estarão nos campos
+            // Esta chamada é um fallback, o ideal é que a página recarregue com os novos filtros
+            renderizarGrafico(); 
+        });
+    });
+</script>
+{% endblock %}

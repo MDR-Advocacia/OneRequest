@@ -1,0 +1,360 @@
+/* ============================================== */
+/* ===         RESET E ESTILOS GLOBAIS        === */
+/* ============================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(120deg, #1d2b4b 0%, #3a506b 100%);
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+/* ============================================== */
+/* ===             ESTRUTURA GERAL            === */
+/* ============================================== */
+
+.App {
+  text-align: center;
+}
+
+.App-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  font-size: calc(10px + 1vmin);
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.header-logo {
+  height: 40px;
+}
+
+.panel-container {
+  padding: 2rem;
+  max-width: 95%; /* Aumenta a largura máxima */
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.input-section, .results-section {
+  padding: 2rem;
+  text-align: left;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+}
+
+.input-section h2, .results-section h2 {
+  margin-bottom: 1.5rem;
+  color: #ffffff;
+  border-bottom: 2px solid #5bc0de;
+  padding-bottom: 0.5rem;
+  display: inline-block;
+}
+
+/* ============================================== */
+/* ===           INPUTS E BOTÕES              === */
+/* ============================================== */
+
+input.form-control, select.form-control, .form-group input, .form-group select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid #4a5568;
+  background-color: #2d3748;
+  color: white;
+  font-size: 0.9em;
+}
+
+select.form-control {
+    cursor: pointer;
+}
+
+.button-group {
+  display: flex;
+  gap: 1rem;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  background-color: #5bc0de;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(91, 192, 222, 0.4);
+}
+
+button.secondary-button {
+  background-color: transparent;
+  border: 2px solid #5bc0de;
+}
+button.secondary-button:hover:not(:disabled) {
+  background-color: #5bc0de;
+}
+
+button.header-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  margin-left: 10px;
+}
+button.header-button:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+button.danger {
+    background-color: #c9302c;
+}
+
+/* ============================================== */
+/* ===    COMPONENTES ESPECÍFICOS (CRUD etc.)   === */
+/* ============================================== */
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.form-group small {
+    color: #a0a0a0;
+}
+
+.user-role {
+  background-color: #5bc0de;
+  color: #1a202c;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
+.alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+    border-radius: .25rem;
+}
+.alert-success {
+    color: #155724;
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+.alert-danger {
+    color: #721c24;
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+/* ============================================== */
+/* ===   ESTILOS MELHORADOS PARA TABELA         === */
+/* ============================================== */
+
+.main-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  color: #e0e0e0;
+  table-layout: fixed;
+  word-wrap: break-word;
+}
+
+.main-table thead {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.main-table th, .main-table td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+  font-size: 0.85em; /* Reduz um pouco a fonte para caber mais info */
+  vertical-align: middle; /* Alinha o conteúdo no meio da célula */
+}
+
+.main-table th {
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.main-table tbody tr:hover {
+  background-color: rgba(91, 192, 222, 0.1);
+}
+
+.col-farol       { width: 4%; }
+.col-recebido    { width: 10%; }
+.col-solicitacao { width: 11%; }
+.col-processo    { width: 11%; }
+.col-prazo       { width: 7%; }
+.col-polo        { width: 5%; }
+.col-responsavel { width: 11%; }
+.col-anotacao    { width: 11%; }
+.col-status      { width: 7%; }
+.col-dmi         { width: 23%; }
+
+/* --- NOVOS ESTILOS PARA O FAROL --- */
+.farol {
+    height: 15px;
+    width: 15px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+.farol-vermelho { background-color: #dc3545; }
+.farol-amarelo  { background-color: #ffc107; }
+.farol-verde    { background-color: #28a745; }
+.farol-cinza    { background-color: #6c757d; }
+
+
+/* --- NOVOS ESTILOS PARA OS CARDS (KPIs) --- */
+.kpi-section {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    padding: 1.5rem;
+    border-radius: 12px;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+.kpi-card h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.2em;
+    font-weight: 500;
+}
+.kpi-card p {
+    margin: 0;
+    font-size: 2.5em;
+    font-weight: bold;
+}
+
+/* Cores dos cards */
+.kpi-card.vencidas { background: linear-gradient(45deg, #d9534f, #c9302c); }
+.kpi-card.hoje     { background: linear-gradient(45deg, #f0ad4e, #ec971f); }
+.kpi-card.amanha   { background: linear-gradient(45deg, #5bc0de, #31b0d5); }
+.kpi-card.futuras  { background: linear-gradient(45deg, #428bca, #357ebd); }
+.status-info { 
+    color: #856404; 
+    background-color: rgba(255, 243, 205, 0.1);
+    font-style: italic; 
+}
+
+.no-data {
+    text-align: center;
+    padding: 2em;
+    color: #a0a0a0;
+}
+
+.texto-dmi {
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 1em; /* Ajusta a fonte do DMI para ser mais legível */
+  max-height: 120px; /* Reduz a altura máxima para linhas mais compactas */
+  overflow-y: auto;
+  display: block;
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 5px;
+  border-radius: 4px;
+}
+
+/* Ajusta os campos de formulário dentro da tabela */
+.main-table .form-control {
+    width: 100%;
+    font-size: 1em;
+    padding: 5px;
+}
+
+.filter-form {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    gap: 1.5rem;
+    flex-grow: 1;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    flex-basis: 300px; /* Largura base dos campos */
+}
+
+.form-field label {
+    margin-bottom: 0.5rem;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #a0a0a0;
+}
+
+.action-group {
+    display: flex;
+    gap: 1rem;
+}
+
+.action-button {
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    text-decoration: none;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.action-button.filter {
+    background-color: #5bc0de;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+}
+.action-button.filter:hover {
+    transform: translateY(-2px);
+}
+
+.action-button.export {
+    background-color: #f0ad4e;
+}
+.action-button.export:hover {
+    background-color: #ec971f;
+}

@@ -10,22 +10,19 @@ DB_SOLICITACOES = os.path.join(BASE_DIR, "solicitacoes.db")
 DB_LEGAL_ONE = os.path.join(BASE_DIR, "database.db") 
 
 def conectar(db_file):
-    """Cria a conexão com um arquivo de banco de dados SQLite específico."""
     conn = sqlite3.connect(db_file)
     conn.row_factory = sqlite3.Row
     return conn
 
 class User(UserMixin):
-    """Classe de usuário para o Flask-Login."""
+    # ... (código existente, sem alterações)
     def __init__(self, id, name, password_hash, role):
         self.id = id
         self.name = name
         self.password_hash = password_hash
         self.role = role
-
     @staticmethod
     def get(user_id):
-        """Busca um usuário pelo ID para o Flask-Login."""
         conn = conectar(DB_SOLICITACOES)
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM usuarios WHERE id = ?", (user_id,))
@@ -36,34 +33,60 @@ class User(UserMixin):
         return None
 
 def inicializar_banco():
-    """Inicializa o banco de dados da aplicação, criando/atualizando as tabelas."""
+    """Inicializa o banco de dados, criando/atualizando as tabelas."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
-    # Tabela de solicitações (sem alteração)
+    # Tabela de solicitações com a nova coluna 'status_sistema'
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS solicitacoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, numero_solicitacao TEXT UNIQUE NOT NULL, titulo TEXT,
         npj_direcionador TEXT, prazo TEXT, texto_dmi TEXT, numero_processo TEXT, polo TEXT,
-        recebido_em TEXT, responsavel TEXT DEFAULT 'N/A', anotacao TEXT DEFAULT '', status TEXT DEFAULT 'Não'
+        recebido_em TEXT, responsavel TEXT DEFAULT 'N/A', anotacao TEXT DEFAULT '', 
+        status TEXT DEFAULT 'Não',
+        status_sistema TEXT DEFAULT 'Aberto' NOT NULL 
     );
     """)
-    # Tabela de usuários do sistema (sem email, com 'name' único e 'role')
+    # Adiciona a coluna se ela não existir (para bancos de dados antigos)
+    try:
+        cursor.execute("ALTER TABLE solicitacoes ADD COLUMN status_sistema TEXT DEFAULT 'Aberto' NOT NULL;")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass # Coluna já existe
+    
+    # Tabela de usuários (sem alteração)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        role TEXT DEFAULT 'user' NOT NULL
+        id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL, role TEXT DEFAULT 'user' NOT NULL
     );
     """)
     conn.commit()
     conn.close()
-    print("✅ Banco de dados 'solicitacoes.db' inicializado com sucesso.")
 
-# --- Funções CRUD para Usuários (sem email, com 'role') ---
+# --- Funções para Sincronização de Status ---
+def obter_solicitacoes_abertas_db():
+    """Retorna uma lista de todos os números de solicitação marcados como 'Aberto'."""
+    conn = conectar(DB_SOLICITACOES)
+    cursor = conn.cursor()
+    cursor.execute("SELECT numero_solicitacao FROM solicitacoes WHERE status_sistema = 'Aberto'")
+    solicitacoes = [row['numero_solicitacao'] for row in cursor.fetchall()]
+    conn.close()
+    return solicitacoes
 
+def marcar_como_respondidas(numeros_solicitacao):
+    """Atualiza o status_sistema de uma lista de solicitações para 'Respondido'."""
+    if not numeros_solicitacao:
+        return
+    conn = conectar(DB_SOLICITACOES)
+    cursor = conn.cursor()
+    # Prepara uma lista de tuplas para a atualização em massa
+    dados_para_atualizar = [(numero,) for numero in numeros_solicitacao]
+    cursor.executemany("UPDATE solicitacoes SET status_sistema = 'Respondido' WHERE numero_solicitacao = ?", dados_para_atualizar)
+    conn.commit()
+    conn.close()
+
+# --- O restante do arquivo (funções de CRUD, etc.) permanece o mesmo ---
 def criar_usuario(name, password, role):
-    """Cria um novo usuário do sistema com senha e papel."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     password_hash = generate_password_hash(password)
@@ -76,7 +99,6 @@ def criar_usuario(name, password, role):
         conn.close()
 
 def obter_usuario_por_nome(name):
-    """Busca um usuário pelo nome para verificar o login."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM usuarios WHERE name = ?", (name,))
@@ -87,7 +109,6 @@ def obter_usuario_por_nome(name):
     return None
 
 def obter_todos_usuarios():
-    """Busca todos os usuários do nosso sistema."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM usuarios ORDER BY name ASC;")
@@ -96,7 +117,6 @@ def obter_todos_usuarios():
     return usuarios
 
 def obter_usuario_por_id(user_id):
-    """Busca um usuário do nosso sistema pelo seu ID."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM usuarios WHERE id = ?", (user_id,))
@@ -105,7 +125,6 @@ def obter_usuario_por_id(user_id):
     return usuario
 
 def atualizar_usuario(user_id, name, role, new_password=None):
-    """Atualiza os dados de um usuário do sistema."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     if new_password:
@@ -117,14 +136,12 @@ def atualizar_usuario(user_id, name, role, new_password=None):
     conn.close()
 
 def deletar_usuario(user_id):
-    """Deleta um usuário do sistema."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM usuarios WHERE id = ?", (user_id,))
     conn.commit()
     conn.close()
     
-# --- O restante das funções para solicitações e Legal One não muda ---
 def inserir_novas_solicitacoes(numeros_solicitacao):
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
@@ -163,8 +180,7 @@ def obter_usuarios_legal_one():
         usuarios = cursor.fetchall()
         conn.close()
         return usuarios
-    except sqlite3.OperationalError as e:
-        print(f"❌ ERRO ao acessar a tabela externa 'legal_one_users': {e}")
+    except sqlite3.OperationalError:
         return []
 
 def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status):

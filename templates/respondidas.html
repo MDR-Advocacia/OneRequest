@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Solicitações Respondidas - OneRequest{% endblock %}
+
+{% block content %}
+<section class="results-section">
+    <h2>Histórico de Solicitações Respondidas</h2>
+    
+    <table class="main-table">
+        <thead>
+            <tr>
+                <th class="col-recebido">Recebido Em</th>
+                <th class="col-solicitacao">Nº Solicitação</th>
+                <th class="col-processo">Nº Processo</th>
+                <th class="col-prazo">Prazo</th>
+                <th class="col-polo">Polo</th>
+                <th class="col-responsavel">Responsável</th>
+                <th class="col-anotacao">Anotação Final</th>
+                <th class="col-status">Status Final</th>
+                <th class="col-dmi">Texto DMI</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if solicitacoes %}
+                {% for item in solicitacoes %}
+                <tr>
+                    <td>{{ item['recebido_em'] }}</td>
+                    <td>{{ item['numero_solicitacao'] }}</td>
+                    <td>{{ item['numero_processo'] }}</td>
+                    <td>{{ item['prazo'] }}</td>
+                    <td>{{ item['polo'] }}</td>
+                    <td>{{ item['responsavel'] }}</td>
+                    <td>{{ item['anotacao'] }}</td>
+                    <td>{{ item['status'] }}</td>
+                    <td><div class="texto-dmi">{{ item['texto_dmi'] }}</div></td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="9" class="no-data">Nenhuma solicitação foi respondida ainda.</td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

@@ -1,0 +1,103 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(120deg, #1d2b4b 0%, #3a506b 100%);
+  padding: 2rem;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 400px;
+  padding: 2.5rem;
+  text-align: center;
+  
+  /* Efeito Glassmorphism */
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+}
+
+/* Estilo para a logo em IMAGEM */
+.login-logo {
+  height: 50px;
+  margin-bottom: 1rem;
+}
+
+.login-box h2 {
+  margin-bottom: 1.5rem;
+  color: #fff;
+  font-weight: 300;
+}
+
+.input-group {
+  text-align: left;
+  margin-bottom: 1.5rem;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #e0e0e0;
+  font-weight: bold;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: #f0f0f0;
+}
+
+.login-box button {
+  width: 100%;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  background-color: #5bc0de;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.login-box button:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-2px);
+}
+
+/* Estilos para as mensagens de alerta (flash) */
+.flash-message {
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+.flash-message.danger {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.15);
+}
+
+.flash-message.info {
+  color: #a0a0a0;
+  background-color: rgba(255, 255, 255, 0.1);
+}
