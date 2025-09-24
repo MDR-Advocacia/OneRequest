@@ -1,13 +1,11 @@
 /* ============================================== */
 /* ===         RESET E ESTILOS GLOBAIS        === */
 /* ============================================== */
-
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
-
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
@@ -22,7 +20,6 @@ body {
 /* ============================================== */
 /* ===             ESTRUTURA GERAL            === */
 /* ============================================== */
-
 .App {
   text-align: center;
 }
@@ -31,7 +28,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem 2rem;
+  padding: 1rem 2.5rem;
   font-size: calc(10px + 1vmin);
   color: white;
   background: rgba(255, 255, 255, 0.1);
@@ -41,13 +38,50 @@ body {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+.header-left, .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+}
+.header-right {
+    justify-content: flex-end;
+}
+.header-title {
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.main-nav {
+    display: flex;
+    justify-content: center;
+    gap: 2.5rem;
+    flex: 2;
+}
+.nav-link {
+    color: rgba(255, 255, 255, 0.7);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 8px 0;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+}
+.nav-link:hover {
+    color: #ffffff;
+}
+.nav-link.active {
+    color: #ffffff;
+    border-bottom-color: #5bc0de;
+}
+
 .header-logo {
   height: 40px;
 }
 
 .panel-container {
   padding: 2rem;
-  max-width: 95%; /* Aumenta a largura máxima */
+  max-width: 95%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -86,16 +120,8 @@ input.form-control, select.form-control, .form-group input, .form-group select {
   color: white;
   font-size: 0.9em;
 }
-
-select.form-control {
-    cursor: pointer;
-}
-
-.button-group {
-  display: flex;
-  gap: 1rem;
-}
-
+select.form-control { cursor: pointer; }
+.button-group { display: flex; gap: 1rem; }
 button {
   padding: 10px 20px;
   border: none;
@@ -108,20 +134,15 @@ button {
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
-
 button:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(91, 192, 222, 0.4);
 }
-
 button.secondary-button {
   background-color: transparent;
   border: 2px solid #5bc0de;
 }
-button.secondary-button:hover:not(:disabled) {
-  background-color: #5bc0de;
-}
-
+button.secondary-button:hover:not(:disabled) { background-color: #5bc0de; }
 button.header-button {
   background-color: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -129,31 +150,15 @@ button.header-button {
   font-size: 0.9rem;
   margin-left: 10px;
 }
-button.header-button:hover {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-button.danger {
-    background-color: #c9302c;
-}
+button.header-button:hover { background-color: rgba(255, 255, 255, 0.3); }
+button.danger { background-color: #c9302c; }
 
 /* ============================================== */
 /* ===    COMPONENTES ESPECÍFICOS (CRUD etc.)   === */
 /* ============================================== */
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-
-.form-group small {
-    color: #a0a0a0;
-}
-
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+.form-group small { color: #a0a0a0; }
 .user-role {
   background-color: #5bc0de;
   color: #1a202c;
@@ -162,28 +167,18 @@ button.danger {
   font-size: 0.8em;
   font-weight: bold;
 }
-
 .alert {
     padding: 1rem;
     margin-bottom: 1rem;
     border: 1px solid transparent;
     border-radius: .25rem;
 }
-.alert-success {
-    color: #155724;
-    background-color: #d4edda;
-    border-color: #c3e6cb;
-}
-.alert-danger {
-    color: #721c24;
-    background-color: #f8d7da;
-    border-color: #f5c6cb;
-}
+.alert-success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+.alert-danger { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
 
 /* ============================================== */
 /* ===   ESTILOS MELHORADOS PARA TABELA         === */
 /* ============================================== */
-
 .main-table {
   width: 100%;
   border-collapse: collapse;
@@ -192,27 +187,16 @@ button.danger {
   table-layout: fixed;
   word-wrap: break-word;
 }
-
-.main-table thead {
-  background-color: rgba(0, 0, 0, 0.2);
-}
-
+.main-table thead { background-color: rgba(0, 0, 0, 0.2); }
 .main-table th, .main-table td {
   padding: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   text-align: left;
-  font-size: 0.85em; /* Reduz um pouco a fonte para caber mais info */
-  vertical-align: middle; /* Alinha o conteúdo no meio da célula */
+  font-size: 0.85em;
+  vertical-align: middle;
 }
-
-.main-table th {
-  font-weight: bold;
-  color: #ffffff;
-}
-
-.main-table tbody tr:hover {
-  background-color: rgba(91, 192, 222, 0.1);
-}
+.main-table th { font-weight: bold; color: #ffffff; }
+.main-table tbody tr:hover { background-color: rgba(91, 192, 222, 0.1); }
 
 .col-farol       { width: 4%; }
 .col-recebido    { width: 10%; }
@@ -225,136 +209,39 @@ button.danger {
 .col-status      { width: 7%; }
 .col-dmi         { width: 23%; }
 
-/* --- NOVOS ESTILOS PARA O FAROL --- */
-.farol {
-    height: 15px;
-    width: 15px;
-    border-radius: 50%;
-    display: inline-block;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-}
+.farol { height: 15px; width: 15px; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
 .farol-vermelho { background-color: #dc3545; }
 .farol-amarelo  { background-color: #ffc107; }
 .farol-verde    { background-color: #28a745; }
 .farol-cinza    { background-color: #6c757d; }
 
-
-/* --- NOVOS ESTILOS PARA OS CARDS (KPIs) --- */
 .kpi-section {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
-
-.kpi-card {
-    padding: 1.5rem;
-    border-radius: 12px;
-    color: #fff;
-    text-align: center;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-}
-.kpi-card h3 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.2em;
-    font-weight: 500;
-}
-.kpi-card p {
-    margin: 0;
-    font-size: 2.5em;
-    font-weight: bold;
-}
-
-/* Cores dos cards */
+.kpi-card { padding: 1.5rem; border-radius: 12px; color: #fff; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+.kpi-card h3 { margin: 0 0 0.5rem 0; font-size: 1.2em; font-weight: 500; }
+.kpi-card p { margin: 0; font-size: 2.5em; font-weight: bold; }
 .kpi-card.vencidas { background: linear-gradient(45deg, #d9534f, #c9302c); }
 .kpi-card.hoje     { background: linear-gradient(45deg, #f0ad4e, #ec971f); }
 .kpi-card.amanha   { background: linear-gradient(45deg, #5bc0de, #31b0d5); }
 .kpi-card.futuras  { background: linear-gradient(45deg, #428bca, #357ebd); }
-.status-info { 
-    color: #856404; 
-    background-color: rgba(255, 243, 205, 0.1);
-    font-style: italic; 
-}
-
-.no-data {
-    text-align: center;
-    padding: 2em;
-    color: #a0a0a0;
-}
-
-.texto-dmi {
-  white-space: pre-wrap;
-  font-family: monospace;
-  font-size: 1em; /* Ajusta a fonte do DMI para ser mais legível */
-  max-height: 120px; /* Reduz a altura máxima para linhas mais compactas */
-  overflow-y: auto;
-  display: block;
-  background-color: rgba(0, 0, 0, 0.2);
-  padding: 5px;
-  border-radius: 4px;
-}
-
-/* Ajusta os campos de formulário dentro da tabela */
-.main-table .form-control {
-    width: 100%;
-    font-size: 1em;
-    padding: 5px;
-}
-
-.filter-form {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 1rem;
-}
-
-.filter-group {
-    display: flex;
-    gap: 1.5rem;
-    flex-grow: 1;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    flex-basis: 300px; /* Largura base dos campos */
-}
-
-.form-field label {
-    margin-bottom: 0.5rem;
-    font-size: 0.9em;
-    font-weight: bold;
-    color: #a0a0a0;
-}
-
-.action-group {
-    display: flex;
-    gap: 1rem;
-}
-
-.action-button {
-    padding: 10px 20px;
-    border-radius: 8px;
-    color: white;
-    font-weight: bold;
-    text-decoration: none;
-    text-align: center;
-    transition: all 0.3s ease;
-}
-
-.action-button.filter {
-    background-color: #5bc0de;
-    border: none;
-    cursor: pointer;
-    font-size: 1rem;
-}
-.action-button.filter:hover {
-    transform: translateY(-2px);
-}
-
-.action-button.export {
-    background-color: #f0ad4e;
-}
-.action-button.export:hover {
-    background-color: #ec971f;
-}
+.status-info { color: #856404; background-color: rgba(255, 243, 205, 0.1); font-style: italic; }
+.no-data { text-align: center; padding: 2em; color: #a0a0a0; }
+.texto-dmi { white-space: pre-wrap; font-family: monospace; font-size: 1em; max-height: 120px; overflow-y: auto; display: block; background-color: rgba(0, 0, 0, 0.2); padding: 5px; border-radius: 4px; }
+.main-table .form-control { width: 100%; font-size: 1em; padding: 5px; }
+.chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+.total-badge { background-color: #5bc0de; color: white; padding: 8px 15px; border-radius: 20px; font-weight: bold; font-size: 0.9em; }
+.chart-container { position: relative; height: 300px; width: 100%; }
+.filter-form { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
+.filter-group { display: flex; gap: 1.5rem; flex-grow: 1; }
+.form-field { display: flex; flex-direction: column; flex-basis: 300px; }
+.form-field label { margin-bottom: 0.5rem; font-size: 0.9em; font-weight: bold; color: #a0a0a0; }
+.action-group { display: flex; gap: 1rem; }
+.action-button { padding: 10px 20px; border-radius: 8px; color: white; font-weight: bold; text-decoration: none; text-align: center; transition: all 0.3s ease; }
+.action-button.filter { background-color: #5bc0de; border: none; cursor: pointer; font-size: 1rem; }
+.action-button.filter:hover { transform: translateY(-2px); }
+.action-button.export { background-color: #f0ad4e; }
+.action-button.export:hover { background-color: #ec971f; }
