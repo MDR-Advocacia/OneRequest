@@ -39,3 +39,65 @@ Os dados são apresentados em um painel web moderno e interativo, que oferece fe
 -   **Agendamento:** Módulo `schedule` do Python
 
 ## 📂 Estrutura do Projeto
+
+onerequest/
+│
+├── bd/
+│   ├── database.py         # Módulo de controle do banco de dados
+│   ├── database.db         # Banco de dados externo (para lista de responsáveis)
+│   └── solicitacoes.db     # Banco de dados principal da aplicação
+│
+├── RPA/
+│   ├── coletaDadosNumeroSolicitacoes.py  # Robô 1: Coleta e sincroniza números
+│   ├── main.py             # Robô 2: Detalha as solicitações pendentes
+│   ├── navegador.py        # Módulo para controlar o navegador
+│   └── portal_bb.py        # Módulo com as ações específicas do portal
+│
+├── static/
+│   ├── css/                # Arquivos de estilo (CSS)
+│   └── images/             # Imagens e logos
+│
+├── templates/
+│   ├── index.html          # Template do painel principal
+│   ├── login.html          # Template da página de login
+│   └── ...                 # Outros templates HTML
+│
+├── server.py               # Servidor web Flask
+├── scheduler.py            # Script para agendamento dos robôs
+├── requirements.txt        # Lista de dependências Python
+└── ...
+
+
+
+## 🚀 Como Executar
+
+### Pré-requisitos
+
+-   Python 3.x instalado.
+-   Um ambiente virtual (venv) é altamente recomendado.
+
+### Instalação
+
+1.  Clone ou copie os arquivos do projeto para uma pasta no seu computador.
+2.  Abra um terminal, navegue até a pasta do projeto e crie um ambiente virtual:
+    ```bash
+    python -m venv venv
+    ```
+3.  Ative o ambiente virtual:
+    -   No Windows: `venv\Scripts\activate`
+    -   No macOS/Linux: `source venv/bin/activate`
+4.  Instale todas as dependências necessárias:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+### Execução
+
+O sistema foi projetado para rodar em dois processos separados: o **servidor do painel** e o **agendador dos robôs**.
+
+**1. Para Iniciar o Painel Web:**
+
+Execute o servidor Flask. Ele criará o banco de dados e o primeiro usuário `admin` (senha: `admin`) se eles não existirem.
+
+```bash
+python server.py
