@@ -1,15 +1,16 @@
-
-# Framework para a API
+# --- Framework Web e Servidor ---
 Flask
-Flask-Cors
-Flask-JWT-Extended
+waitress
 
-openpyxl
+# --- Autenticação e Segurança ---
+Flask-Login
+Werkzeug
 
-# Biblioteca para automação web (RPA)
+# --- Automação Web (RPA) ---
 playwright
 
-# Para carregar variáveis de ambiente (melhora a segurança)
-python-dotenv
+# --- Manipulação de Planilhas ---
+openpyxl
 
+# --- Agendamento de Tarefas ---
 schedule

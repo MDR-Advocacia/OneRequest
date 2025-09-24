@@ -1,41 +1,61 @@
 import re
-from playwright.sync_api import Page, Frame
+from playwright.sync_api import Page, Frame, TimeoutError
 
 EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
 
 def fazer_login(context) -> Page:
-    """Realiza o processo de login através da extensão e retorna a página principal do portal."""
-    print(f"🚀 Navegando diretamente para a URL da extensão...")
-    extension_page = context.pages[0] if context.pages else context.new_page()
-    extension_page.goto(EXTENSION_URL)
-    extension_page.wait_for_load_state("domcontentloaded")
+    """
+    Realiza o processo de login usando a lógica robusta que espera pela
+    confirmação visual do login no portal.
+    """
+    try:
+        print("🚀 Iniciando o processo de login pela extensão...")
+        extension_page = context.pages[0] if context.pages else context.new_page()
+        extension_page.goto(EXTENSION_URL)
+        extension_page.wait_for_load_state("domcontentloaded")
 
-    print("    - Localizando o campo de busca na extensão...")
-    search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
-    search_input.wait_for(state="visible", timeout=5000)
-    search_input.fill("banco do")
+        print("    - Localizando o campo de busca na extensão...")
+        search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
+        search_input.wait_for(state="visible", timeout=10000)
+        search_input.fill("banco do")
 
-    with context.expect_event('page') as new_page_info:
         print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
         login_button = extension_page.locator('div[role="menuitem"]:not([disabled])', has_text="Banco do Brasil - Intranet").first
         login_button.click(timeout=10000)
-        print("    - Clicando no botão de confirmação 'ACESSAR'...")
-        extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-    
-    portal_page = new_page_info.value
-    extension_page.close()
-    
-    print("✔️  Login confirmado! Aguardando a autenticação se propagar.")
-    portal_page.wait_for_timeout(5000)
-    portal_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
-    portal_page.wait_for_selector('p:text("Portal Jurídico")')
-    print("\n✅ PROCESSO DE LOGIN FINALIZADO.")
-    
-    print("\n▶️  Iniciando a limpeza seletiva de cookies...")
-    context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-    context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-    print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
-    return portal_page
+
+        # Espera a nova página (o portal) ser aberta como resultado do clique.
+        with context.expect_page() as new_page_info:
+            print("    - Clicando no botão de confirmação 'ACESSAR'...")
+            extension_page.get_by_role("button", name="ACESSAR").click(timeout=10000)
+        
+        portal_page = new_page_info.value
+        print("    - Aguardando a página inicial do portal carregar e confirmar o login...")
+
+        # --- LÓGICA DE VERIFICAÇÃO ROBUSTA (DO SEU RPA FUNCIONAL) ---
+        # O robô agora espera ativamente até que o link "Página Inicial" esteja visível.
+        elemento_de_confirmacao = portal_page.locator("#aPaginaInicial")
+        elemento_de_confirmacao.wait_for(state="visible", timeout=90000) # Timeout longo para dar tempo
+        
+        print("    - Verificação de login bem-sucedida! Link 'Página inicial' encontrado.")
+        # -----------------------------------------------------------
+
+        extension_page.close()
+        print("\n✅ PROCESSO DE LOGIN FINALIZADO.")
+        
+        print("\n▶️  Iniciando a limpeza seletiva de cookies...")
+        context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
+        context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
+        print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
+        return portal_page
+
+    except TimeoutError as e:
+        print("\n❌ FALHA no processo de login (Timeout).")
+        print("   - O robô não conseguiu encontrar um elemento da extensão ou da página do portal a tempo.")
+        raise e
+    except Exception as e:
+        print(f"\n❌ FALHA inesperada durante o login: {e}")
+        raise e
+
 
 def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     """Navega para a página de detalhes e extrai todas as informações."""
@@ -90,14 +110,8 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
             dados_solicitacao["numero_processo"] = api_data.get("data", {}).get("textoNumeroInventario", "Dado ausente na API")
             
             polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
-            
-            # ###############################################################
-            # ## AQUI ESTÁ A CORREÇÃO!                                     ##
-            # ## Adicionamos o "N" para "Neutro" ao dicionário de mapeamento ##
-            # ###############################################################
             polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
             dados_solicitacao["polo"] = polo_map.get(polo_indicador, "Não definido")
-            # ###############################################################
             
         else:
             dados_solicitacao["numero_processo"] = f"Processo não encontrado (API {api_response.status})"
