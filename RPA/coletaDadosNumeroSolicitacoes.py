@@ -4,22 +4,15 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, Frame
 import json
 import random
-
-# ###############################################################
-# ## INÍCIO - AJUSTE DE IMPORTAÇÃO                             ##
-# ###############################################################
 import sys
 import os
 
-# Adiciona o diretório raiz do projeto (onerequest) ao path do Python
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-# Agora podemos importar o módulo da pasta 'bd'
 from bd import database
-# ###############################################################
-# ## FIM - AJUSTE DE IMPORTAÇÃO                                ##
-# ###############################################################
+
 
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
