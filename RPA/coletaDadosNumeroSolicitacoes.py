@@ -214,8 +214,9 @@ def main():
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
             print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            portal_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
-            portal_page.wait_for_selector('p:text("Portal Jurídico")')
+            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")')
+            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
+            print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             print("▶️  Iniciando a limpeza seletiva de cookies...")
             context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
@@ -256,7 +257,7 @@ def main():
         print("========================================================")
     finally:
         if browser_process:
-            input("\n... Pressione Enter para fechar o navegador e encerrar o script ...")
+            print("\n... Fechando o navegador e encerrando o script ...")
             subprocess.run(f"TASKKILL /F /PID {browser_process.pid} /T", shell=True, capture_output=True)
             print("🏁 Navegador fechado. Fim da execução.")
 

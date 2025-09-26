@@ -3,7 +3,6 @@ import os
 from navegador import Navegador
 import portal_bb
 
-# Adiciona o diretório raiz do projeto ao path para encontrar o módulo 'bd'
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 from bd import database
@@ -51,7 +50,7 @@ def run():
         print(f"================================================================")
     finally:
         # 6. Fecha o navegador
-        input("\n... Pressione Enter para fechar o navegador e encerrar o script ...")
+        print("\n... Fechando o navegador e encerrando o script ...")
         nav.fechar()
 
 if __name__ == "__main__":

@@ -51,6 +51,8 @@ def logout():
 
 # --- Rotas do Painel ---
 
+
+
 @app.route('/')
 @login_required
 def index():
