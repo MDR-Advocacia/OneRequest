@@ -65,8 +65,8 @@ Para colocar o sistema em funcionamento, siga os passos abaixo.
 1.  **Clone o repositório:**
 
     ```bash
-    git clone <URL-do-seu-repositorio>
-    cd <nome-do-repositorio>
+    git clone https://github.com/MDR-Advocacia/OneRequest.git
+    cd OneRequest
     ```
 
 2.  **Instale as dependências:**
