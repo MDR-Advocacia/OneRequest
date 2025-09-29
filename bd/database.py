@@ -191,3 +191,19 @@ def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status):
     """, (responsavel, anotacao, status, num_solicitacao))
     conn.commit()
     conn.close()
+
+
+def marcar_como_abertas(numeros_solicitacao):
+    """
+    Atualiza o status_sistema de uma lista de solicitações para 'Aberto'.
+    Isso é útil para reverter solicitações que foram marcadas como 'Respondido' por engano.
+    """
+    if not numeros_solicitacao:
+        return
+    conn = conectar(DB_SOLICITACOES)
+    cursor = conn.cursor()
+    # Prepara uma lista de tuplas para a atualização em massa
+    dados_para_atualizar = [(numero,) for numero in numeros_solicitacao]
+    cursor.executemany("UPDATE solicitacoes SET status_sistema = 'Aberto' WHERE numero_solicitacao = ?", dados_para_atualizar)
+    conn.commit()
+    conn.close()

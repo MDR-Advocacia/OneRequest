@@ -4,22 +4,15 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, Frame
 import json
 import random
-
-# ###############################################################
-# ## INÍCIO - AJUSTE DE IMPORTAÇÃO                             ##
-# ###############################################################
 import sys
 import os
 
-# Adiciona o diretório raiz do projeto (onerequest) ao path do Python
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-# Agora podemos importar o módulo da pasta 'bd'
 from bd import database
-# ###############################################################
-# ## FIM - AJUSTE DE IMPORTAÇÃO                                ##
-# ###############################################################
+
 
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
@@ -221,8 +214,9 @@ def main():
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
             print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            portal_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
-            portal_page.wait_for_selector('p:text("Portal Jurídico")')
+            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")')
+            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
+            print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             print("▶️  Iniciando a limpeza seletiva de cookies...")
             context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
@@ -263,7 +257,7 @@ def main():
         print("========================================================")
     finally:
         if browser_process:
-            input("\n... Pressione Enter para fechar o navegador e encerrar o script ...")
+            print("\n... Fechando o navegador e encerrando o script ...")
             subprocess.run(f"TASKKILL /F /PID {browser_process.pid} /T", shell=True, capture_output=True)
             print("🏁 Navegador fechado. Fim da execução.")
 

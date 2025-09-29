@@ -108,7 +108,7 @@ body {
 }
 
 /* ============================================== */
-/* ===           INPUTS E BOTÕES              === */
+/* ===            INPUTS E BOTÕES             === */
 /* ============================================== */
 
 input.form-control, select.form-control, .form-group input, .form-group select {
@@ -177,7 +177,7 @@ button.danger { background-color: #c9302c; }
 .alert-danger { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
 
 /* ============================================== */
-/* ===   ESTILOS MELHORADOS PARA TABELA         === */
+/* ===       ESTILOS MELHORADOS PARA TABELA       === */
 /* ============================================== */
 .main-table {
   width: 100%;
@@ -198,16 +198,19 @@ button.danger { background-color: #c9302c; }
 .main-table th { font-weight: bold; color: #ffffff; }
 .main-table tbody tr:hover { background-color: rgba(91, 192, 222, 0.1); }
 
+/* --- LARGURAS DAS COLUNAS CORRIGIDAS --- */
 .col-farol       { width: 4%; }
-.col-recebido    { width: 10%; }
+.col-recebido    { width: 9%; }
 .col-solicitacao { width: 11%; }
 .col-processo    { width: 11%; }
+.col-titulo      { width: 15%; } /* NOVO */
 .col-prazo       { width: 7%; }
 .col-polo        { width: 5%; }
-.col-responsavel { width: 11%; }
-.col-anotacao    { width: 11%; }
+.col-responsavel { width: 10%; }
+.col-anotacao    { width: 10%; }
 .col-status      { width: 7%; }
-.col-dmi         { width: 23%; }
+.col-dmi         { width: 11%; }
+
 
 .farol { height: 15px; width: 15px; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
 .farol-vermelho { background-color: #dc3545; }

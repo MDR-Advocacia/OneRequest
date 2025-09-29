@@ -31,12 +31,12 @@ def fazer_login(context) -> Page:
         portal_page = new_page_info.value
         print("    - Aguardando a página inicial do portal carregar e confirmar o login...")
 
-        # --- LÓGICA DE VERIFICAÇÃO ROBUSTA (DO SEU RPA FUNCIONAL) ---
-        # O robô agora espera ativamente até que o link "Página Inicial" esteja visível.
-        elemento_de_confirmacao = portal_page.locator("#aPaginaInicial")
-        elemento_de_confirmacao.wait_for(state="visible", timeout=90000) # Timeout longo para dar tempo
+        # --- LÓGICA DE ESPERA ROBUSTA ---
+        elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")')
+        elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
+        print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
         
-        print("    - Verificação de login bem-sucedida! Link 'Página inicial' encontrado.")
+        
         # -----------------------------------------------------------
 
         extension_page.close()

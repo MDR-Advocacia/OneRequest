@@ -51,6 +51,8 @@ def logout():
 
 # --- Rotas do Painel ---
 
+
+
 @app.route('/')
 @login_required
 def index():
@@ -224,4 +226,4 @@ if __name__ == '__main__':
     database.inicializar_banco()
     if not database.obter_todos_usuarios():
         database.criar_usuario(name='admin', password='admin', role='admin')
-    app.run(debug=True, port=5001)
+    app.run(host='0.0.0.0', port=5000, debug=True)
