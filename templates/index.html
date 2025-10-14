@@ -32,7 +32,7 @@
 </section>
 
 <section class="input-section">
-    <h2>Filtros e Ações</h2>
+    <h2>Filtros</h2>
     <form method="GET" action="{{ url_for('index') }}" class="filter-form" id="filter-form">
         <div class="filter-group">
             <div class="form-field">
@@ -40,34 +40,54 @@
                 <select name="responsavel" class="form-control">
                     <option value="">Todos</option>
                     {% for usuario in usuarios %}
-                        <option value="{{ usuario['name'] }}" {% if filters.responsavel == usuario['name'] %}selected{% endif %}>
-                            {{ usuario['name'] }}
-                        </option>
+                    <option value="{{ usuario['name'] }}" {% if filters.responsavel==usuario['name'] %}selected{% endif
+                        %}>
+                        {{ usuario['name'] }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
             <div class="form-field">
                 <label>Busca (Tabela)</label>
-                <input type="text" name="busca" class="form-control" placeholder="Palavra-chave ou número" value="{{ filters.busca }}">
+                <input type="text" name="busca" class="form-control" placeholder="Palavra-chave ou número"
+                    value="{{ filters.busca }}">
             </div>
             <div class="form-field">
                 <label>Data Início (Gráfico)</label>
-                <input type="date" name="data_inicio_grafico" id="data-inicio-grafico" class="form-control" value="{{ filters.data_inicio_grafico }}">
+                <input type="date" name="data_inicio_grafico" id="data-inicio-grafico" class="form-control"
+                    value="{{ filters.data_inicio_grafico }}">
             </div>
             <div class="form-field">
                 <label>Data Fim (Gráfico)</label>
-                <input type="date" name="data_fim_grafico" id="data-fim-grafico" class="form-control" value="{{ filters.data_fim_grafico }}">
+                <input type="date" name="data_fim_grafico" id="data-fim-grafico" class="form-control"
+                    value="{{ filters.data_fim_grafico }}">
+            </div>
+            <div class="action-group" style="align-self: flex-end;">
+             <button type="submit" class="action-button filter">Filtrar</button>
             </div>
         </div>
-        <div class="action-group">
-            <a href="{{ url_for('exportar') }}" class="action-button export">Exportar Pendentes ({{ solicitacoes|length }})</a>
-            <button type="submit" class="action-button filter">Filtrar</button>
+        <div>
+            <a href="{{ url_for('exportar') }}" class="action-button export btn btn-success btn-sm me-2">
+                <i class="bi bi-file-earmark-excel me-1"></i>
+                Exportar para Excel
+            </a>
+            <a href="{{ url_for('exportar_json') }}" class="action-button export btn btn-primary btn-sm">
+                <i class="bi bi-filetype-json me-1"></i>
+                Exportar para JSON
+            </a>
         </div>
+        
     </form>
 </section>
 
 <section class="results-section">
-    <h2>Solicitações Abertas ({{ solicitacoes|length }})</h2>
+    <div class="card-header d-flex justify-content-between align-items-center" style="padding: 1rem 0;">
+        <h5 class="mb-0">
+            <i class="bi bi-card-list me-2"></i>
+            Solicitações Abertas ({{ solicitacoes|length }})
+        </h5>
+        
+    </div>
     <table class="main-table">
         <thead>
             <tr>
@@ -75,7 +95,7 @@
                 <th class="col-recebido">Recebido Em</th>
                 <th class="col-solicitacao">Nº Solicitação</th>
                 <th class="col-processo">Nº Processo</th>
-                <th class="col-titulo">Título DMI</th> 
+                <th class="col-titulo">Título DMI</th>
                 <th class="col-prazo">Prazo</th>
                 <th class="col-polo">Polo</th>
                 <th class="col-responsavel">Responsável</th>
@@ -86,45 +106,55 @@
         </thead>
         <tbody>
             {% if solicitacoes %}
-                {% for item in solicitacoes %}
-                    <tr data-id="{{ item['numero_solicitacao'] }}">
-                        <td>
-                            <span class="farol farol-{{ item['farol_status'] }}"></span>
-                        </td>
-                        <td>{{ item['recebido_em'] }}</td>
-                        <td>{{ item['numero_solicitacao'] }}</td>
-                        <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %} class="status-info" {% endif %}>
-                            {{ item['numero_processo'] }}
-                        </td>
-                        <td><div class="texto-dmi">{{ item['titulo'] }}</div></td> <td>{{ item['prazo'] }}</td>
-                        <td>{{ item['polo'] }}</td>
-                        <td>
-                            <select class="form-control" name="responsavel">
-                                <option value="N/A" {% if item['responsavel'] == 'N/A' %}selected{% endif %}>-- Selecione --</option>
-                                {% for usuario in usuarios %}
-                                    <option value="{{ usuario['name'] }}" {% if item['responsavel'] == usuario['name'] %}selected{% endif %}>
-                                        {{ usuario['name'] }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </td>
-                        <td>
-                            <input type="text" class="form-control" name="anotacao" placeholder="Observação" value="{{ item['anotacao'] }}">
-                        </td>
-                        <td>
-                            <select class="form-control" name="status">
-                                <option value="Não" {% if item['status'] == 'Não' %}selected{% endif %}>Não</option>
-                                <option value="Sim" {% if item['status'] == 'Sim' %}selected{% endif %}>Sim</option>
-                                <option value="LegalOne?" {% if item['status'] == 'LegalOne?' %}selected{% endif %}>LegalOne?</option>
-                            </select>
-                        </td>
-                        <td><div class="texto-dmi">{{ item['texto_dmi'] }}</div></td>
-                    </tr>
-                {% endfor %}
+            {% for item in solicitacoes %}
+            <tr data-id="{{ item['numero_solicitacao'] }}">
+                <td>
+                    <span class="farol farol-{{ item['farol_status'] }}"></span>
+                </td>
+                <td>{{ item['recebido_em'] }}</td>
+                <td>{{ item['numero_solicitacao'] }}</td>
+                <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %}
+                    class="status-info" {% endif %}>
+                    {{ item['numero_processo'] }}
+                </td>
+                <td>
+                    <div class="texto-dmi">{{ item['titulo'] }}</div>
+                </td>
+                <td>{{ item['prazo'] }}</td>
+                <td>{{ item['polo'] }}</td>
+                <td>
+                    <select class="form-control" name="responsavel">
+                        <option value="N/A" {% if item['responsavel']=='N/A' %}selected{% endif %}>-- Selecione --
+                        </option>
+                        {% for usuario in usuarios %}
+                        <option value="{{ usuario['name'] }}" {% if item['responsavel']==usuario['name'] %}selected{%
+                            endif %}>
+                            {{ usuario['name'] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </td>
+                <td>
+                    <input type="text" class="form-control" name="anotacao" placeholder="Observação"
+                        value="{{ item['anotacao'] }}">
+                </td>
+                <td>
+                    <select class="form-control" name="status">
+                        <option value="Não" {% if item['status']=='Não' %}selected{% endif %}>Não</option>
+                        <option value="Sim" {% if item['status']=='Sim' %}selected{% endif %}>Sim</option>
+                        <option value="LegalOne?" {% if item['status']=='LegalOne?' %}selected{% endif %}>LegalOne?
+                        </option>
+                    </select>
+                </td>
+                <td>
+                    <div class="texto-dmi">{{ item['texto_dmi'] }}</div>
+                </td>
+            </tr>
+            {% endfor %}
             {% else %}
-                <tr>
-                    <td colspan="11" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
-                </tr>
+            <tr>
+                <td colspan="11" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+            </tr>
             {% endif %}
         </tbody>
     </table>
@@ -147,7 +177,7 @@
                 row.style.backgroundColor = 'rgba(91, 192, 222, 0.2)';
                 fetch('/atualizar', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json',},
+                    headers: { 'Content-Type': 'application/json', },
                     body: JSON.stringify({
                         numero_solicitacao: id,
                         responsavel: responsavel,
@@ -155,16 +185,16 @@
                         status: status
                     })
                 })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Sucesso:', data);
-                    setTimeout(() => row.style.backgroundColor = '', 500);
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    row.style.backgroundColor = '';
-                    alert('Não foi possível salvar os dados.');
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Sucesso:', data);
+                        setTimeout(() => row.style.backgroundColor = '', 500);
+                    })
+                    .catch(error => {
+                        console.error('Erro:', error);
+                        row.style.backgroundColor = '';
+                        alert('Não foi possível salvar os dados.');
+                    });
             });
         });
 
@@ -181,8 +211,8 @@
                 .then(apiData => {
                     const ctx = document.getElementById('recebimentosChart').getContext('2d');
                     document.getElementById('total-recebimentos').innerText = `Total: ${apiData.total}`;
-                    
-                    if(recebimentosChart) {
+
+                    if (recebimentosChart) {
                         recebimentosChart.destroy();
                     }
 
@@ -226,13 +256,12 @@
         // Renderiza o gráfico quando a página carrega
         renderizarGrafico();
 
-        // Atualiza o gráfico quando o formulário de filtro é submetido
-        const filterForm = document.getElementById('filter-form');
-        filterForm.addEventListener('submit', (event) => {
-            // A página vai recarregar por causa do submit, mas podemos
-            // redesenhar o gráfico com as novas datas que estarão nos campos
-            // Esta chamada é um fallback, o ideal é que a página recarregue com os novos filtros
-            renderizarGrafico(); 
+        // Submete o formulário quando as datas do gráfico mudam, para recarregar a página com os novos dados
+        document.getElementById('data-inicio-grafico').addEventListener('change', () => {
+             document.getElementById('filter-form').submit();
+        });
+         document.getElementById('data-fim-grafico').addEventListener('change', () => {
+             document.getElementById('filter-form').submit();
         });
     });
 </script>

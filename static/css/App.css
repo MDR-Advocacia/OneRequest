@@ -1,5 +1,5 @@
 /* ============================================== */
-/* ===         RESET E ESTILOS GLOBAIS        === */
+/* ===      RESET E ESTILOS GLOBAIS         === */
 /* ============================================== */
 * {
   box-sizing: border-box;
@@ -18,7 +18,7 @@ body {
 }
 
 /* ============================================== */
-/* ===             ESTRUTURA GERAL            === */
+/* ===           ESTRUTURA GERAL             === */
 /* ============================================== */
 .App {
   text-align: center;
@@ -79,15 +79,14 @@ body {
   height: 40px;
 }
 
+/* --- CORREÇÃO APLICADA AQUI --- */
 .panel-container {
   padding: 2rem;
   max-width: 95%;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
 }
 
+/* --- CORREÇÃO APLICADA AQUI --- */
 .input-section, .results-section {
   padding: 2rem;
   text-align: left;
@@ -97,6 +96,7 @@ body {
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+  margin-bottom: 2rem; 
 }
 
 .input-section h2, .results-section h2 {
@@ -108,7 +108,7 @@ body {
 }
 
 /* ============================================== */
-/* ===            INPUTS E BOTÕES             === */
+/* ===           INPUTS E BOTÕES             === */
 /* ============================================== */
 
 input.form-control, select.form-control, .form-group input, .form-group select {
@@ -154,7 +154,7 @@ button.header-button:hover { background-color: rgba(255, 255, 255, 0.3); }
 button.danger { background-color: #c9302c; }
 
 /* ============================================== */
-/* ===    COMPONENTES ESPECÍFICOS (CRUD etc.)   === */
+/* ===   COMPONENTES ESPECÍFICOS (CRUD etc.)   === */
 /* ============================================== */
 .form-group { margin-bottom: 15px; }
 .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
@@ -177,7 +177,7 @@ button.danger { background-color: #c9302c; }
 .alert-danger { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
 
 /* ============================================== */
-/* ===       ESTILOS MELHORADOS PARA TABELA       === */
+/* ===     ESTILOS MELHORADOS PARA TABELA      === */
 /* ============================================== */
 .main-table {
   width: 100%;
@@ -203,7 +203,7 @@ button.danger { background-color: #c9302c; }
 .col-recebido    { width: 9%; }
 .col-solicitacao { width: 11%; }
 .col-processo    { width: 11%; }
-.col-titulo      { width: 15%; } /* NOVO */
+.col-titulo      { width: 15%; }
 .col-prazo       { width: 7%; }
 .col-polo        { width: 5%; }
 .col-responsavel { width: 10%; }
@@ -238,7 +238,7 @@ button.danger { background-color: #c9302c; }
 .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 .total-badge { background-color: #5bc0de; color: white; padding: 8px 15px; border-radius: 20px; font-weight: bold; font-size: 0.9em; }
 .chart-container { position: relative; height: 300px; width: 100%; }
-.filter-form { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
+.filter-form { display:flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
 .filter-group { display: flex; gap: 1.5rem; flex-grow: 1; }
 .form-field { display: flex; flex-direction: column; flex-basis: 300px; }
 .form-field label { margin-bottom: 0.5rem; font-size: 0.9em; font-weight: bold; color: #a0a0a0; }
@@ -248,3 +248,9 @@ button.danger { background-color: #c9302c; }
 .action-button.filter:hover { transform: translateY(-2px); }
 .action-button.export { background-color: #f0ad4e; }
 .action-button.export:hover { background-color: #ec971f; }
+
+/* --- CORREÇÃO ADICIONAL --- */
+/* Remove a margem extra da última seção dentro do painel */
+.panel-container > section:last-child {
+    margin-bottom: 0;
+}

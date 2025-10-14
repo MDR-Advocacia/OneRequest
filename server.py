@@ -8,6 +8,7 @@ from functools import wraps
 from datetime import datetime, timedelta
 import openpyxl
 from io import BytesIO
+import json
 
 app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_pode_ser_qualquer_coisa' 
@@ -109,7 +110,7 @@ def respondidas():
 @app.route('/exportar')
 @login_required
 def exportar():
-    # ... (código existente, sem alterações)
+    
     conn = sqlite3.connect(database.DB_SOLICITACOES)
     conn.row_factory = sqlite3.Row
     solicitacoes = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
@@ -124,6 +125,32 @@ def exportar():
     workbook.save(output)
     output.seek(0)
     return Response(output, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment;filename=solicitacoes_pendentes.xlsx"})
+
+@app.route('/exportar/json')
+@login_required
+def exportar_json():
+    """Busca as solicitações abertas e retorna como um arquivo JSON."""
+    conn = sqlite3.connect(database.DB_SOLICITACOES)
+    conn.row_factory = sqlite3.Row
+    # Seleciona todas as solicitações com status 'Aberto'
+    solicitacoes_raw = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
+    conn.close()
+
+    # Converte os resultados do banco de dados (que são do tipo Row) para uma lista de dicionários
+    solicitacoes_list = [dict(row) for row in solicitacoes_raw]
+
+    # Converte a lista para uma string JSON formatada
+    json_output = json.dumps(solicitacoes_list, indent=4, ensure_ascii=False)
+
+    # Cria uma resposta Flask com o conteúdo JSON
+    return Response(
+        json_output,
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment;filename=solicitacoes_pendentes.json"}
+    )
+
+
+
 
 # --- Rota de API para Gráfico (ATUALIZADA) ---
 @app.route('/api/recebimentos')
