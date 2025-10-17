@@ -214,7 +214,7 @@ def main():
             print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
             time.sleep(5)
             print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")')
+            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
             elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
             print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")

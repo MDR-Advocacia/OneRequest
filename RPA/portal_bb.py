@@ -32,8 +32,8 @@ def fazer_login(context) -> Page:
         print("    - Aguardando a página inicial do portal carregar e confirmar o login...")
 
         # --- LÓGICA DE ESPERA ROBUSTA ---
-        elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")')
-        elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
+        elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
+        elemento_de_confirmacao.wait_for(state="visible", timeout=90000)
         print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
         
         

@@ -83,8 +83,8 @@ def main():
             time.sleep(5)
             
             print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            portal_page.goto("https://juridico.bb.com.br/paj/juridico#redirect-completed")
-            portal_page.wait_for_selector('p:text("Portal Jurídico")')
+            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
+            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
             
             print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
             

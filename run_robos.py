@@ -43,9 +43,9 @@ def ciclo_completo_de_automacao():
     # Apenas continua para o Robô 2 se o Robô 1 foi bem-sucedido
     if sucesso_robo_1:
         print("\n---------------------------------------------------------")
-        print("[⏳] Aguardando 2 minutos antes de iniciar o Robô 2...")
+        print("[⏳] Aguardando 20 s antes de iniciar o Robô 2...")
         print("---------------------------------------------------------")
-        time.sleep(120) # Pausa de 120 segundos (2 minutos)
+        time.sleep(20) # Pausa de 20 segundos (20 segundos)
         
         # Executa o Robô 2
         executar_robo_2()
