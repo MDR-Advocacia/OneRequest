@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  server:
+    # Constrói a partir da pasta atual ('.')
+    build: .
+    # O comando para rodar (agora funciona, pois server.py está na raiz)
+    command: python server.py
+    ports:
+      - "5000:5000" # Mapeia a porta (PC : Contêiner)
+    volumes:
+      # Mapeia TODO o projeto para o /app
+      # Qualquer mudança local será refletida no contêiner
+      - .:/app
+    restart: unless-stopped

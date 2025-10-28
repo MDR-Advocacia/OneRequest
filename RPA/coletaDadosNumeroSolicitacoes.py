@@ -227,22 +227,31 @@ def main():
             
             if tarefa_frame:
                 if clicar_pesquisar(tarefa_frame):
+                    
                     if alterar_registros_por_pagina(tarefa_frame):
+                        
+                        # !!! --- ESTA LINHA ESTAVA FALTANDO --- !!!
+                        # Ela é responsável por executar a extração e definir a variável
                         numeros_atuais_portal = set(extrair_todos_numeros_solicitacoes(tarefa_frame))
                         
                         # --- Lógica de Sincronização ---
                         print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
                         numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
 
-                        # 1. Encontra as que foram respondidas
+                        # 1. Encontra as que foram respondidas (estão no DB como 'Aberto', mas NÃO estão no portal)
                         respondidas = list(numeros_abertos_db - numeros_atuais_portal)
                         if respondidas:
                             database.marcar_como_respondidas(respondidas)
                             print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
 
-                        # 2. Insere as novas
+                        # 2. Insere as novas (que não existem no DB)
                         database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
-                        print(f"✅ Novas solicitações inseridas/verificadas no banco de dados.")
+                        print(f"✅ Novas solicitações (se houver) inseridas no banco de dados.")
+                        
+                        # 3. (CORREÇÃO) Garante que TODAS as solicitações ativas no portal estejam marcadas como 'Aberto' no DB.
+                        #    Isso corrige o problema de reabertura de solicitações.
+                        database.marcar_como_abertas(list(numeros_atuais_portal))
+                        print(f"✅ Status de {len(numeros_atuais_portal)} solicitações do portal sincronizado para 'Aberto'.")
 
                     else:
                         print("❌ Não foi possível alterar o número de registros por página.")
