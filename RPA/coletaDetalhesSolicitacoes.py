@@ -184,10 +184,44 @@ def main():
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
     finally:
-        if browser_process:
-            input("\n... Pressione Enter para fechar o navegador e encerrar o script ...")
-            subprocess.run(f"TASKKILL /F /PID {browser_process.pid} /T", shell=True, capture_output=True)
-            print("🏁 Navegador fechado. Fim da execução.")
+        # --- BLOCO FINALLY CORRIGIDO ---
+        # Removi o 'input()' para permitir que o robô rode automaticamente
+        
+        print("\n... Iniciando rotina de fechamento do navegador ...")
+
+        # O 'with sync_playwright()' já cuida de fechar a conexão do Playwright.
+        # Nós só precisamos matar o processo do Chrome pela porta 9222.
+        
+        print("     Procurando e finalizando o processo do Chrome na porta 9222...")
+        try:
+            if sys.platform == "win32":
+                cmd_find_pid = "netstat -ano -p TCP | findstr :9222"
+                result = subprocess.run(cmd_find_pid, shell=True, capture_output=True, text=True, check=False)
+                output = result.stdout.strip()
+
+                if not output:
+                    print("     Nenhum processo encontrado na porta 9222.")
+                else:
+                    # Tenta extrair o PID (é o último número na linha)
+                    pid_match = re.search(r'(\d+)$', output.splitlines()[0])
+                    
+                    if pid_match:
+                        pid = pid_match.group(1)
+                        print(f"     Encontrado processo (PID: {pid}) na porta 9222. Finalizando...")
+                        # Comando para matar o PID encontrado
+                        subprocess.run(f"TASKKILL /F /PID {pid} /T", shell=True, check=False, capture_output=True)
+                        print(f"🏁 Processo {pid} (Chrome) finalizado.")
+                    else:
+                        print(f"     Não foi possível extrair o PID da saída do netstat: {output}")
+            else:
+                # Lógica para Linux/Mac
+                subprocess.run("lsof -t -i:9222 | xargs kill -9", shell=True, check=False, capture_output=True)
+                print("     Comando de finalização (Linux/Mac) executado.")
+
+        except Exception as e_kill:
+            print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
+
+        print("--- Rotina de fechamento concluída. Fim da execução. ---")
 
 if __name__ == "__main__":
     main()

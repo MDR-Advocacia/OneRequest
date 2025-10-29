@@ -6,6 +6,7 @@ import json
 import random
 import sys
 import os
+import re
 
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -230,26 +231,23 @@ def main():
                     
                     if alterar_registros_por_pagina(tarefa_frame):
                         
-                        # !!! --- ESTA LINHA ESTAVA FALTANDO --- !!!
-                        # Ela é responsável por executar a extração e definir a variável
                         numeros_atuais_portal = set(extrair_todos_numeros_solicitacoes(tarefa_frame))
                         
                         # --- Lógica de Sincronização ---
                         print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
                         numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
 
-                        # 1. Encontra as que foram respondidas (estão no DB como 'Aberto', mas NÃO estão no portal)
+                        # 1. Encontra as que foram respondidas
                         respondidas = list(numeros_abertos_db - numeros_atuais_portal)
                         if respondidas:
                             database.marcar_como_respondidas(respondidas)
                             print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
 
-                        # 2. Insere as novas (que não existem no DB)
+                        # 2. Insere as novas
                         database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
                         print(f"✅ Novas solicitações (se houver) inseridas no banco de dados.")
                         
-                        # 3. (CORREÇÃO) Garante que TODAS as solicitações ativas no portal estejam marcadas como 'Aberto' no DB.
-                        #    Isso corrige o problema de reabertura de solicitações.
+                        # 3. Garante que TODAS as ativas estejam como 'Aberto'
                         database.marcar_como_abertas(list(numeros_atuais_portal))
                         print(f"✅ Status de {len(numeros_atuais_portal)} solicitações do portal sincronizado para 'Aberto'.")
 
@@ -265,10 +263,42 @@ def main():
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
     finally:
-        if browser_process:
-            print("\n... Fechando o navegador e encerrando o script ...")
-            subprocess.run(f"TASKKILL /F /PID {browser_process.pid} /T", shell=True, capture_output=True)
-            print("🏁 Navegador fechado. Fim da execução.")
+        # --- BLOCO FINALLY CORRIGIDO ---
+        # Este bloco agora executa a mesma lógica do nav.fechar()
+        print("\n... Iniciando rotina de fechamento do navegador ...")
+
+        # O 'with sync_playwright()' já cuida de fechar a conexão do Playwright.
+        # Nós só precisamos matar o processo do Chrome pela porta 9222.
+        
+        print("     Procurando e finalizando o processo do Chrome na porta 9222...")
+        try:
+            if sys.platform == "win32":
+                cmd_find_pid = "netstat -ano -p TCP | findstr :9222"
+                result = subprocess.run(cmd_find_pid, shell=True, capture_output=True, text=True, check=False)
+                output = result.stdout.strip()
+
+                if not output:
+                    print("     Nenhum processo encontrado na porta 9222.")
+                else:
+                    pid_match = re.search(r'(\d+)$', output.splitlines()[0])
+                    
+                    if pid_match:
+                        pid = pid_match.group(1)
+                        print(f"     Encontrado processo (PID: {pid}) na porta 9222. Finalizando...")
+                        subprocess.run(f"TASKKILL /F /PID {pid} /T", shell=True, check=False, capture_output=True)
+                        print(f"🏁 Processo {pid} (Chrome) finalizado.")
+                    else:
+                        print(f"     Não foi possível extrair o PID da saída do netstat: {output}")
+            else:
+                # Lógica para Linux/Mac
+                subprocess.run("lsof -t -i:9222 | xargs kill -9", shell=True, check=False, capture_output=True)
+                print("     Comando de finalização (Linux/Mac) executado.")
+
+        except Exception as e_kill:
+            print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
+
+        print("--- Rotina de fechamento concluída. Fim da execução. ---")
+
 
 if __name__ == "__main__":
     main()
