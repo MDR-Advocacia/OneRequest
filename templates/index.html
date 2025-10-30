@@ -99,7 +99,9 @@
                 <th class="col-prazo">Prazo</th>
                 <th class="col-polo">Polo</th>
                 <th class="col-responsavel">Responsável</th>
-                <th class="col-setor">Setor</th> <th class="col-anotacao">Campo de Observação</th>
+                <th class="col-setor">Setor</th>
+                <th class="col-data-agendamento">Data p/ agendamento</th>
+                <th class="col-anotacao">Campo de Observação</th>
                 <th class="col-status">Status</th>
                 <th class="col-dmi">Texto DMI</th>
             </tr>
@@ -144,6 +146,9 @@
                     </select>
                 </td>
                 <td>
+                    <input type="date" class="form-control" name="data_agendamento" value="{{ item['data_agendamento'] }}">
+                </td>
+                <td>
                     <input type="text" class="form-control" name="anotacao" placeholder="Observação"
                         value="{{ item['anotacao'] }}">
                 </td>
@@ -162,7 +167,7 @@
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="12" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                <td colspan="13" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
             </tr>
             {% endif %}
         </tbody>
@@ -173,14 +178,16 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Script para salvar as alterações da tabela
+        // O script de salvar JÁ FUNCIONA com type="date"
+        // Não precisamos de alterações aqui.
         const inputs = document.querySelectorAll('tbody .form-control');
         inputs.forEach(input => {
             input.addEventListener('change', () => {
                 const row = input.closest('tr');
                 const id = row.dataset.id;
                 const responsavel = row.querySelector('[name="responsavel"]').value;
-                const setor = row.querySelector('[name="setor"]').value; // LINHA ADICIONADA
+                const setor = row.querySelector('[name="setor"]').value;
+                const data_agendamento = row.querySelector('[name="data_agendamento"]').value;
                 const anotacao = row.querySelector('[name="anotacao"]').value;
                 const status = row.querySelector('[name="status"]').value;
                 row.style.transition = 'background-color 0.5s ease';
@@ -193,7 +200,8 @@
                         responsavel: responsavel,
                         anotacao: anotacao,
                         status: status,
-                        setor: setor // CAMPO ADICIONADO
+                        setor: setor,
+                        data_agendamento: data_agendamento
                     })
                 })
                     .then(response => response.json())
@@ -209,8 +217,8 @@
             });
         });
 
-        // Script para renderizar o gráfico
-        let recebimentosChart = null; // Variável para guardar a instância do gráfico
+        // Script para renderizar o gráfico (sem alterações)
+        let recebimentosChart = null; 
 
         function renderizarGrafico() {
             const dataInicio = document.getElementById('data-inicio-grafico').value;

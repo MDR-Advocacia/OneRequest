@@ -57,7 +57,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    # ... (lógica de filtros e KPIs existente, sem alterações)
+    # ROTA index() ATUALIZADA
     filters = {
         'responsavel': request.args.get('responsavel', ''),
         'busca': request.args.get('busca', ''),
@@ -82,6 +82,17 @@ def index():
     solicitacoes_processadas = []
     for item_raw in solicitacoes_raw:
         item = dict(item_raw)
+        
+        # --- LÓGICA DE FORMATAÇÃO DE DATA (INVERTIDA) ---
+        # Converte datas (DD/MM/AAAA) do passo anterior para AAAA-MM-DD
+        try:
+            data_obj = datetime.strptime(item['data_agendamento'], '%d/%m/%Y').date()
+            item['data_agendamento'] = data_obj.strftime('%Y-%m-%d')
+        except (ValueError, TypeError):
+            # Se falhar, a data já está vazia ou no formato AAAA-MM-DD (novo)
+            pass 
+        # --- FIM DA LÓGICA DE FORMATAÇÃO ---
+
         item['farol_status'] = 'cinza'
         try:
             prazo_date = datetime.strptime(item['prazo'], '%d/%m/%Y').date()
@@ -93,6 +104,7 @@ def index():
         except (ValueError, TypeError):
             item['prazo_date'] = datetime.max.date()
         solicitacoes_processadas.append(item)
+    
     solicitacoes = sorted(solicitacoes_processadas, key=lambda x: x['prazo_date'])
     usuarios_dropdown = database.obter_usuarios_legal_one()
     
@@ -113,16 +125,25 @@ def exportar():
     
     conn = sqlite3.connect(database.DB_SOLICITACOES)
     conn.row_factory = sqlite3.Row
-    solicitacoes = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
+    solicitacoes_raw = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
     conn.close()
+    
     workbook = openpyxl.Workbook()
     sheet = workbook.active
-    # Cabeçalho atualizado
-    headers = ["Recebido Em", "Nº Solicitação", "Nº Processo", "Prazo", "Polo", "Responsável", "Setor", "Anotação", "Status"]
+    headers = ["Recebido Em", "Nº Solicitação", "Nº Processo", "Prazo", "Polo", "Responsável", "Setor", "Data p/ agendamento", "Anotação", "Status"]
     sheet.append(headers)
-    for item in solicitacoes:
-        # Linha atualizada
-        sheet.append([item['recebido_em'], item['numero_solicitacao'], item['numero_processo'], item['prazo'], item['polo'], item['responsavel'], item['setor'], item['anotacao'], item['status']])
+    
+    for item_raw in solicitacoes_raw:
+        item = dict(item_raw)
+        # Formata a data para o Excel também (de AAAA-MM-DD para DD/MM/AAAA)
+        try:
+            data_obj = datetime.strptime(item['data_agendamento'], '%Y-%m-%d').date()
+            item['data_agendamento'] = data_obj.strftime('%d/%m/%Y')
+        except (ValueError, TypeError):
+            pass # Deixa como está (DD/MM/AAAA ou vazio)
+
+        sheet.append([item['recebido_em'], item['numero_solicitacao'], item['numero_processo'], item['prazo'], item['polo'], item['responsavel'], item['setor'], item['data_agendamento'], item['anotacao'], item['status']])
+    
     output = BytesIO()
     workbook.save(output)
     output.seek(0)
@@ -131,24 +152,42 @@ def exportar():
 @app.route('/exportar/json')
 @login_required
 def exportar_json():
-    """Busca as solicitações abertas e retorna como um arquivo JSON."""
+    """Busca as solicitações abertas e retorna como um arquivo JSON com cabeçalho."""
     conn = sqlite3.connect(database.DB_SOLICITACOES)
     conn.row_factory = sqlite3.Row
-    # Seleciona todas as solicitações com status 'Aberto'
     solicitacoes_raw = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
     conn.close()
 
-    # Converte os resultados do banco de dados (que são do tipo Row) para uma lista de dicionários
-    solicitacoes_list = [dict(row) for row in solicitacoes_raw]
+    solicitacoes_list = []
+    for row in solicitacoes_raw:
+        item = dict(row)
+        
+        # --- LÓGICA DE FORMATAÇÃO DE DATA ADICIONADA ---
+        # Converte datas (AAAA-MM-DD) salvas no DB para (DD/MM/AAAA) no JSON
+        try:
+            data_obj = datetime.strptime(item['data_agendamento'], '%Y-%m-%d').date()
+            item['data_agendamento'] = data_obj.strftime('%d/%m/%Y')
+        except (ValueError, TypeError):
+            # Se falhar, a data já está vazia ou no formato DD/MM/AAAA (antigo)
+            pass
+        # --- FIM DA LÓGICA DE FORMATAÇÃO ---
+        
+        solicitacoes_list.append(item)
 
-    # Converte a lista para uma string JSON formatada
-    json_output = json.dumps(solicitacoes_list, indent=4, ensure_ascii=False)
+    # Cria o objeto final com o cabeçalho "fonte"
+    output_data = {
+        "fonte": "OneRequest",
+        "solicitacoes": solicitacoes_list
+    }
+
+    # Converte o objeto final para uma string JSON formatada
+    json_output = json.dumps(output_data, indent=4, ensure_ascii=False)
 
     # Cria uma resposta Flask com o conteúdo JSON
     return Response(
         json_output,
         mimetype="application/json",
-        headers={"Content-Disposition": "attachment;filename=solicitacoes_pendentes.json"}
+        headers={"Content-Disposition": "attachment;filename=solicitacoes_onerequest.json"}
     )
 
 
@@ -202,14 +241,15 @@ def api_recebimentos():
 @app.route('/atualizar', methods=['POST'])
 @login_required
 def atualizar():
-    # ROTA /atualizar ATUALIZADA
+    # Esta rota salva o que o <input type="date"> envia (AAAA-MM-DD)
     dados = request.json
     database.atualizar_campos_edicao(
         dados.get('numero_solicitacao'), 
         dados.get('responsavel'), 
         dados.get('anotacao'), 
         dados.get('status'),
-        dados.get('setor') # CAMPO ADICIONADO
+        dados.get('setor'),
+        dados.get('data_agendamento')
     )
     return jsonify({'status': 'sucesso'})
 

@@ -36,27 +36,36 @@ def inicializar_banco():
     """Inicializa o banco de dados, criando/atualizando as tabelas."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
-    # Tabela de solicitações com a nova coluna 'status_sistema' e 'setor'
+    # Tabela de solicitações com a nova coluna 'data_agendamento'
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS solicitacoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, numero_solicitacao TEXT UNIQUE NOT NULL, titulo TEXT,
         npj_direcionador TEXT, prazo TEXT, texto_dmi TEXT, numero_processo TEXT, polo TEXT,
         recebido_em TEXT, responsavel TEXT DEFAULT 'N/A', anotacao TEXT DEFAULT '', 
         status TEXT DEFAULT 'Não',
-        setor TEXT DEFAULT 'N/A', -- NOVA COLUNA ADICIONADA
+        setor TEXT DEFAULT 'N/A',
+        data_agendamento TEXT DEFAULT '', -- NOVA COLUNA ADICIONADA
         status_sistema TEXT DEFAULT 'Aberto' NOT NULL 
     );
     """)
-    # Adiciona a coluna se ela não existir (para bancos de dados antigos)
+    
+    # Adiciona a coluna status_sistema (para bancos de dados antigos)
     try:
         cursor.execute("ALTER TABLE solicitacoes ADD COLUMN status_sistema TEXT DEFAULT 'Aberto' NOT NULL;")
         conn.commit()
     except sqlite3.OperationalError:
         pass # Coluna já existe
-    
-    # Adiciona a nova coluna setor (para bancos de dados antigos)
+        
+    # Adiciona a coluna setor (para bancos de dados antigos)
     try:
         cursor.execute("ALTER TABLE solicitacoes ADD COLUMN setor TEXT DEFAULT 'N/A';")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass # Coluna já existe
+
+    # Adiciona a nova coluna data_agendamento (para bancos de dados antigos)
+    try:
+        cursor.execute("ALTER TABLE solicitacoes ADD COLUMN data_agendamento TEXT DEFAULT '';")
         conn.commit()
     except sqlite3.OperationalError:
         pass # Coluna já existe
@@ -191,13 +200,14 @@ def obter_usuarios_legal_one():
     except sqlite3.OperationalError:
         return []
 
-def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status, setor):
+# FUNÇÃO ATUALIZADA
+def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status, setor, data_agendamento):
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("""
-    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ?, setor = ? 
+    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ?, setor = ?, data_agendamento = ?
     WHERE numero_solicitacao = ?;
-    """, (responsavel, anotacao, status, setor, num_solicitacao)) # Adicionado 'setor'
+    """, (responsavel, anotacao, status, setor, data_agendamento, num_solicitacao)) # Adicionado 'data_agendamento'
     conn.commit()
     conn.close()
 

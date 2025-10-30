@@ -195,6 +195,10 @@ button.danger { background-color: #c9302c; }
     */
     width: 120px; 
 }
+.main-table .col-data-agendamento {
+    width: 140px; /* Um input de data é um pouco mais largo */
+    min-width: 140px;
+}
 .main-table thead { background-color: rgba(0, 0, 0, 0.2); }
 .main-table th, .main-table td {
   padding: 12px;
