@@ -117,10 +117,12 @@ def exportar():
     conn.close()
     workbook = openpyxl.Workbook()
     sheet = workbook.active
-    headers = ["Recebido Em", "Nº Solicitação", "Nº Processo", "Prazo", "Polo", "Responsável", "Anotação", "Status"]
+    # Cabeçalho atualizado
+    headers = ["Recebido Em", "Nº Solicitação", "Nº Processo", "Prazo", "Polo", "Responsável", "Setor", "Anotação", "Status"]
     sheet.append(headers)
     for item in solicitacoes:
-        sheet.append([item['recebido_em'], item['numero_solicitacao'], item['numero_processo'], item['prazo'], item['polo'], item['responsavel'], item['anotacao'], item['status']])
+        # Linha atualizada
+        sheet.append([item['recebido_em'], item['numero_solicitacao'], item['numero_processo'], item['prazo'], item['polo'], item['responsavel'], item['setor'], item['anotacao'], item['status']])
     output = BytesIO()
     workbook.save(output)
     output.seek(0)
@@ -200,9 +202,15 @@ def api_recebimentos():
 @app.route('/atualizar', methods=['POST'])
 @login_required
 def atualizar():
-    #...
+    # ROTA /atualizar ATUALIZADA
     dados = request.json
-    database.atualizar_campos_edicao(dados.get('numero_solicitacao'), dados.get('responsavel'), dados.get('anotacao'), dados.get('status'))
+    database.atualizar_campos_edicao(
+        dados.get('numero_solicitacao'), 
+        dados.get('responsavel'), 
+        dados.get('anotacao'), 
+        dados.get('status'),
+        dados.get('setor') # CAMPO ADICIONADO
+    )
     return jsonify({'status': 'sucesso'})
 
 @app.route('/usuarios')

@@ -99,7 +99,7 @@
                 <th class="col-prazo">Prazo</th>
                 <th class="col-polo">Polo</th>
                 <th class="col-responsavel">Responsável</th>
-                <th class="col-anotacao">Campo de Observação</th>
+                <th class="col-setor">Setor</th> <th class="col-anotacao">Campo de Observação</th>
                 <th class="col-status">Status</th>
                 <th class="col-dmi">Texto DMI</th>
             </tr>
@@ -135,6 +135,15 @@
                     </select>
                 </td>
                 <td>
+                    <select class="form-control" name="setor">
+                        <option value="N/A" {% if item['setor']=='N/A' %}selected{% endif %}>-- Selecione --</option>
+                        <option value="BB Réu" {% if item['setor']=='BB Réu' %}selected{% endif %}>BB Réu</option>
+                        <option value="BB Recurso" {% if item['setor']=='BB Recurso' %}selected{% endif %}>BB Recurso</option>
+                        <option value="BB Encerramento" {% if item['setor']=='BB Encerramento' %}selected{% endif %}>BB Encerramento</option>
+                        <option value="BB Autor" {% if item['setor']=='BB Autor' %}selected{% endif %}>BB Autor</option>
+                    </select>
+                </td>
+                <td>
                     <input type="text" class="form-control" name="anotacao" placeholder="Observação"
                         value="{{ item['anotacao'] }}">
                 </td>
@@ -153,7 +162,7 @@
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="11" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                <td colspan="12" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
             </tr>
             {% endif %}
         </tbody>
@@ -171,6 +180,7 @@
                 const row = input.closest('tr');
                 const id = row.dataset.id;
                 const responsavel = row.querySelector('[name="responsavel"]').value;
+                const setor = row.querySelector('[name="setor"]').value; // LINHA ADICIONADA
                 const anotacao = row.querySelector('[name="anotacao"]').value;
                 const status = row.querySelector('[name="status"]').value;
                 row.style.transition = 'background-color 0.5s ease';
@@ -182,7 +192,8 @@
                         numero_solicitacao: id,
                         responsavel: responsavel,
                         anotacao: anotacao,
-                        status: status
+                        status: status,
+                        setor: setor // CAMPO ADICIONADO
                     })
                 })
                     .then(response => response.json())

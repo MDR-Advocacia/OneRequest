@@ -36,19 +36,27 @@ def inicializar_banco():
     """Inicializa o banco de dados, criando/atualizando as tabelas."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
-    # Tabela de solicitações com a nova coluna 'status_sistema'
+    # Tabela de solicitações com a nova coluna 'status_sistema' e 'setor'
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS solicitacoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, numero_solicitacao TEXT UNIQUE NOT NULL, titulo TEXT,
         npj_direcionador TEXT, prazo TEXT, texto_dmi TEXT, numero_processo TEXT, polo TEXT,
         recebido_em TEXT, responsavel TEXT DEFAULT 'N/A', anotacao TEXT DEFAULT '', 
         status TEXT DEFAULT 'Não',
+        setor TEXT DEFAULT 'N/A', -- NOVA COLUNA ADICIONADA
         status_sistema TEXT DEFAULT 'Aberto' NOT NULL 
     );
     """)
     # Adiciona a coluna se ela não existir (para bancos de dados antigos)
     try:
         cursor.execute("ALTER TABLE solicitacoes ADD COLUMN status_sistema TEXT DEFAULT 'Aberto' NOT NULL;")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass # Coluna já existe
+    
+    # Adiciona a nova coluna setor (para bancos de dados antigos)
+    try:
+        cursor.execute("ALTER TABLE solicitacoes ADD COLUMN setor TEXT DEFAULT 'N/A';")
         conn.commit()
     except sqlite3.OperationalError:
         pass # Coluna já existe
@@ -183,12 +191,13 @@ def obter_usuarios_legal_one():
     except sqlite3.OperationalError:
         return []
 
-def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status):
+def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status, setor):
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("""
-    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ? WHERE numero_solicitacao = ?;
-    """, (responsavel, anotacao, status, num_solicitacao))
+    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ?, setor = ? 
+    WHERE numero_solicitacao = ?;
+    """, (responsavel, anotacao, status, setor, num_solicitacao)) # Adicionado 'setor'
     conn.commit()
     conn.close()
 

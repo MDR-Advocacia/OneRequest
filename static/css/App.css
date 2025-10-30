@@ -187,6 +187,14 @@ button.danger { background-color: #c9302c; }
   table-layout: fixed;
   word-wrap: break-word;
 }
+
+.main-table .col-setor {
+    /* Defina uma largura. 
+       Talvez 120px ou 10%? 
+       Ajuste o valor para ficar bom no seu layout. 
+    */
+    width: 120px; 
+}
 .main-table thead { background-color: rgba(0, 0, 0, 0.2); }
 .main-table th, .main-table td {
   padding: 12px;
