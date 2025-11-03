@@ -36,19 +36,36 @@ def inicializar_banco():
     """Inicializa o banco de dados, criando/atualizando as tabelas."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
-    # Tabela de solicitações com a nova coluna 'status_sistema'
+    # Tabela de solicitações com a nova coluna 'data_agendamento'
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS solicitacoes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, numero_solicitacao TEXT UNIQUE NOT NULL, titulo TEXT,
         npj_direcionador TEXT, prazo TEXT, texto_dmi TEXT, numero_processo TEXT, polo TEXT,
         recebido_em TEXT, responsavel TEXT DEFAULT 'N/A', anotacao TEXT DEFAULT '', 
         status TEXT DEFAULT 'Não',
+        setor TEXT DEFAULT 'N/A',
+        data_agendamento TEXT DEFAULT '', 
         status_sistema TEXT DEFAULT 'Aberto' NOT NULL 
     );
     """)
-    # Adiciona a coluna se ela não existir (para bancos de dados antigos)
+    
+    # Adiciona a coluna status_sistema (para bancos de dados antigos)
     try:
         cursor.execute("ALTER TABLE solicitacoes ADD COLUMN status_sistema TEXT DEFAULT 'Aberto' NOT NULL;")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass # Coluna já existe
+        
+    # Adiciona a coluna setor (para bancos de dados antigos)
+    try:
+        cursor.execute("ALTER TABLE solicitacoes ADD COLUMN setor TEXT DEFAULT 'N/A';")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass # Coluna já existe
+
+    # Adiciona a nova coluna data_agendamento (para bancos de dados antigos)
+    try:
+        cursor.execute("ALTER TABLE solicitacoes ADD COLUMN data_agendamento TEXT DEFAULT '';")
         conn.commit()
     except sqlite3.OperationalError:
         pass # Coluna já existe
@@ -115,6 +132,21 @@ def obter_todos_usuarios():
     usuarios = cursor.fetchall()
     conn.close()
     return usuarios
+
+# --- FUNÇÃO ATUALIZADA ---
+def obter_mapa_usuarios_id():
+    """Retorna um dicionário mapeando 'name' para 'id' da tabela de usuários DO LEGAL ONE."""
+    try:
+        conn = conectar(DB_LEGAL_ONE) # <-- CORREÇÃO: Usar o DB_LEGAL_ONE
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name FROM legal_one_users;") # <-- CORREÇÃO: Usar a tabela legal_one_users
+        user_map = {row['name']: row['id'] for row in cursor.fetchall()}
+        conn.close()
+        return user_map
+    except sqlite3.OperationalError as e:
+        print(f"Erro ao buscar mapa de IDs do Legal One: {e}")
+        return {}
+# --- FIM DA FUNÇÃO ATUALIZADA ---
 
 def obter_usuario_por_id(user_id):
     conn = conectar(DB_SOLICITACOES)
@@ -183,12 +215,13 @@ def obter_usuarios_legal_one():
     except sqlite3.OperationalError:
         return []
 
-def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status):
+def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status, setor, data_agendamento):
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("""
-    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ? WHERE numero_solicitacao = ?;
-    """, (responsavel, anotacao, status, num_solicitacao))
+    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ?, setor = ?, data_agendamento = ?
+    WHERE numero_solicitacao = ?;
+    """, (responsavel, anotacao, status, setor, data_agendamento, num_solicitacao))
     conn.commit()
     conn.close()
 

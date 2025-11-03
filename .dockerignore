@@ -1,0 +1,12 @@
+# Ignorar Git, caches e arquivos de IDE
+.git
+.gitignore
+.vscode/
+__pycache__/
+
+# Ignorar ambientes virtuais
+.venv
+venv
+
+# Ignorar o arquivo que deu erro antes
+LICENSE

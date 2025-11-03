@@ -187,6 +187,18 @@ button.danger { background-color: #c9302c; }
   table-layout: fixed;
   word-wrap: break-word;
 }
+
+.main-table .col-setor {
+    /* Defina uma largura. 
+       Talvez 120px ou 10%? 
+       Ajuste o valor para ficar bom no seu layout. 
+    */
+    width: 120px; 
+}
+.main-table .col-data-agendamento {
+    width: 140px; /* Um input de data é um pouco mais largo */
+    min-width: 140px;
+}
 .main-table thead { background-color: rgba(0, 0, 0, 0.2); }
 .main-table th, .main-table td {
   padding: 12px;
@@ -253,4 +265,33 @@ button.danger { background-color: #c9302c; }
 /* Remove a margem extra da última seção dentro do painel */
 .panel-container > section:last-child {
     margin-bottom: 0;
+}
+
+/* Estilo para a nova coluna de Ações */
+.main-table .col-acoes {
+    width: 130px; /* Largura para o botão */
+    min-width: 130px;
+    text-align: center;
+}
+
+/* Estilo para o novo botão de API (para ficar menor) */
+.api-task-btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+    background-color: #5bc0de; /* Azul claro (info) */
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.api-task-btn:hover {
+    background-color: #31b0d5;
+}
+
+/* Estilo para o botão quando estiver carregando */
+.api-task-btn.loading {
+    background-color: #f0ad4e; /* Laranja (aviso) */
+    cursor: not-allowed;
 }

@@ -99,10 +99,12 @@
                 <th class="col-prazo">Prazo</th>
                 <th class="col-polo">Polo</th>
                 <th class="col-responsavel">Responsável</th>
+                <th class="col-setor">Setor</th>
+                <th class="col-data-agendamento">Data p/ agendamento</th>
                 <th class="col-anotacao">Campo de Observação</th>
                 <th class="col-status">Status</th>
                 <th class="col-dmi">Texto DMI</th>
-            </tr>
+                <th class="col-acoes">Ações</th> </tr>
         </thead>
         <tbody>
             {% if solicitacoes %}
@@ -135,6 +137,18 @@
                     </select>
                 </td>
                 <td>
+                    <select class="form-control" name="setor">
+                        <option value="N/A" {% if item['setor']=='N/A' %}selected{% endif %}>-- Selecione --</option>
+                        <option value="BB Réu" {% if item['setor']=='BB Réu' %}selected{% endif %}>BB Réu</option>
+                        <option value="BB Recurso" {% if item['setor']=='BB Recurso' %}selected{% endif %}>BB Recurso</option>
+                        <option value="BB Encerramento" {% if item['setor']=='BB Encerramento' %}selected{% endif %}>BB Encerramento</option>
+                        <option value="BB Autor" {% if item['setor']=='BB Autor' %}selected{% endif %}>BB Autor</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="date" class="form-control" name="data_agendamento" value="{{ item['data_agendamento'] }}">
+                </td>
+                <td>
                     <input type="text" class="form-control" name="anotacao" placeholder="Observação"
                         value="{{ item['anotacao'] }}">
                 </td>
@@ -149,11 +163,16 @@
                 <td>
                     <div class="texto-dmi">{{ item['texto_dmi'] }}</div>
                 </td>
+                <td>
+                    <button class="api-task-btn" data-id="{{ item['numero_solicitacao'] }}">
+                        Criar Tarefa
+                    </button>
+                </td>
             </tr>
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="11" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                <td colspan="14" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
             </tr>
             {% endif %}
         </tbody>
@@ -164,13 +183,15 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // Script para salvar as alterações da tabela
+        // Script para salvar as alterações da tabela (sem alteração)
         const inputs = document.querySelectorAll('tbody .form-control');
         inputs.forEach(input => {
             input.addEventListener('change', () => {
                 const row = input.closest('tr');
                 const id = row.dataset.id;
                 const responsavel = row.querySelector('[name="responsavel"]').value;
+                const setor = row.querySelector('[name="setor"]').value;
+                const data_agendamento = row.querySelector('[name="data_agendamento"]').value;
                 const anotacao = row.querySelector('[name="anotacao"]').value;
                 const status = row.querySelector('[name="status"]').value;
                 row.style.transition = 'background-color 0.5s ease';
@@ -182,7 +203,9 @@
                         numero_solicitacao: id,
                         responsavel: responsavel,
                         anotacao: anotacao,
-                        status: status
+                        status: status,
+                        setor: setor,
+                        data_agendamento: data_agendamento
                     })
                 })
                     .then(response => response.json())
@@ -198,8 +221,55 @@
             });
         });
 
-        // Script para renderizar o gráfico
-        let recebimentosChart = null; // Variável para guardar a instância do gráfico
+        // --- SCRIPT DO NOVO BOTÃO "CRIAR TAREFA" ---
+        const apiButtons = document.querySelectorAll('.api-task-btn');
+        apiButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const numeroSolicitacao = button.dataset.id;
+                
+                // Desabilita o botão e muda o texto
+                button.disabled = true;
+                button.textContent = 'Enviando...';
+                button.classList.add('loading');
+
+                fetch('/api/criar-tarefa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        numero_solicitacao: numeroSolicitacao
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'sucesso') {
+                        alert(`Sucesso: ${data.mensagem}`);
+                        // Opcional: mudar a cor do botão para verde
+                        button.style.backgroundColor = '#5cb85c'; // Verde
+                        button.textContent = 'Enviada!';
+                    } else {
+                        alert(`Erro ao criar tarefa: ${data.mensagem}`);
+                        // Reabilita o botão se der erro
+                        button.disabled = false;
+                        button.textContent = 'Criar Tarefa';
+                        button.classList.remove('loading');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro no fetch:', error);
+                    alert('Erro de conexão. Verifique o console.');
+                    button.disabled = false;
+                    button.textContent = 'Criar Tarefa';
+                    button.classList.remove('loading');
+                });
+            });
+        });
+        // --- FIM DO NOVO SCRIPT ---
+
+
+        // Script para renderizar o gráfico (sem alteração)
+        let recebimentosChart = null; 
 
         function renderizarGrafico() {
             const dataInicio = document.getElementById('data-inicio-grafico').value;
