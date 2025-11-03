@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 import openpyxl
 from io import BytesIO
 import json
+import re 
+import requests # <-- BIBLIOTECA ADICIONADA
 
 app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_pode_ser_qualquer_coisa' 
@@ -30,6 +32,20 @@ def admin_required(f):
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated_function
+
+# --- FUNÇÃO HELPER (Formatação CNJ) ---
+def formatar_numero_processo_cnj(numero_str):
+    """Formata um número de processo de 20 dígitos para o padrão CNJ."""
+    if not numero_str:
+        return numero_str 
+
+    numeros = re.sub(r'\D', '', numero_str)
+    
+    if len(numeros) == 20:
+        return f"{numeros[0:7]}-{numeros[7:9]}.{numeros[9:13]}.{numeros[13:14]}.{numeros[14:16]}.{numeros[16:20]}"
+    else:
+        return numero_str
+
 
 # --- Rotas de Autenticação ---
 @app.route('/login', methods=['GET', 'POST'])
@@ -57,7 +73,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    # ROTA index() ATUALIZADA
+    # ROTA index() (Sem alterações)
     filters = {
         'responsavel': request.args.get('responsavel', ''),
         'busca': request.args.get('busca', ''),
@@ -83,15 +99,11 @@ def index():
     for item_raw in solicitacoes_raw:
         item = dict(item_raw)
         
-        # --- LÓGICA DE FORMATAÇÃO DE DATA (INVERTIDA) ---
-        # Converte datas (DD/MM/AAAA) do passo anterior para AAAA-MM-DD
         try:
             data_obj = datetime.strptime(item['data_agendamento'], '%d/%m/%Y').date()
             item['data_agendamento'] = data_obj.strftime('%Y-%m-%d')
         except (ValueError, TypeError):
-            # Se falhar, a data já está vazia ou no formato AAAA-MM-DD (novo)
             pass 
-        # --- FIM DA LÓGICA DE FORMATAÇÃO ---
 
         item['farol_status'] = 'cinza'
         try:
@@ -122,7 +134,7 @@ def respondidas():
 @app.route('/exportar')
 @login_required
 def exportar():
-    
+    # ROTA EXPORTAR (EXCEL) (Sem alterações)
     conn = sqlite3.connect(database.DB_SOLICITACOES)
     conn.row_factory = sqlite3.Row
     solicitacoes_raw = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
@@ -135,14 +147,27 @@ def exportar():
     
     for item_raw in solicitacoes_raw:
         item = dict(item_raw)
-        # Formata a data para o Excel também (de AAAA-MM-DD para DD/MM/AAAA)
+        
         try:
             data_obj = datetime.strptime(item['data_agendamento'], '%Y-%m-%d').date()
             item['data_agendamento'] = data_obj.strftime('%d/%m/%Y')
         except (ValueError, TypeError):
-            pass # Deixa como está (DD/MM/AAAA ou vazio)
+            pass 
 
-        sheet.append([item['recebido_em'], item['numero_solicitacao'], item['numero_processo'], item['prazo'], item['polo'], item['responsavel'], item['setor'], item['data_agendamento'], item['anotacao'], item['status']])
+        numero_processo_formatado = formatar_numero_processo_cnj(item['numero_processo'])
+        
+        sheet.append([
+            item['recebido_em'], 
+            item['numero_solicitacao'], 
+            numero_processo_formatado, 
+            item['prazo'], 
+            item['polo'], 
+            item['responsavel'], 
+            item['setor'], 
+            item['data_agendamento'], 
+            item['anotacao'], 
+            item['status']
+        ])
     
     output = BytesIO()
     workbook.save(output)
@@ -152,38 +177,59 @@ def exportar():
 @app.route('/exportar/json')
 @login_required
 def exportar_json():
-    """Busca as solicitações abertas e retorna como um arquivo JSON com cabeçalho."""
+    # ROTA EXPORTAR (JSON) (Sem alterações)
+    try:
+        user_map = database.obter_mapa_usuarios_id()
+    except Exception as e:
+        print(f"Alerta: Não foi possível carregar o mapa de usuários: {e}")
+        user_map = {}
+
     conn = sqlite3.connect(database.DB_SOLICITACOES)
     conn.row_factory = sqlite3.Row
     solicitacoes_raw = conn.execute("SELECT * FROM solicitacoes WHERE status_sistema = 'Aberto'").fetchall()
     conn.close()
 
-    solicitacoes_list = []
+    processos_list = []
     for row in solicitacoes_raw:
         item = dict(row)
         
-        # --- LÓGICA DE FORMATAÇÃO DE DATA ADICIONADA ---
-        # Converte datas (AAAA-MM-DD) salvas no DB para (DD/MM/AAAA) no JSON
+        data_agendamento_formatada = item['data_agendamento']
         try:
             data_obj = datetime.strptime(item['data_agendamento'], '%Y-%m-%d').date()
-            item['data_agendamento'] = data_obj.strftime('%d/%m/%Y')
+            data_agendamento_formatada = data_obj.strftime('%d/%m/%Y')
         except (ValueError, TypeError):
-            # Se falhar, a data já está vazia ou no formato DD/MM/AAAA (antigo)
-            pass
-        # --- FIM DA LÓGICA DE FORMATAÇÃO ---
+            pass 
         
-        solicitacoes_list.append(item)
+        responsavel_name = item.get('responsavel')
+        id_responsavel = user_map.get(responsavel_name) 
 
-    # Cria o objeto final com o cabeçalho "fonte"
+        processo = {
+            "id": item['id'],
+            "numero_solicitacao": item['numero_solicitacao'],
+            "titulo": item['titulo'],
+            "npj_direcionador": item['npj_direcionador'],
+            "vencimento": item['prazo'], 
+            "texto_dmi": item['texto_dmi'],
+            "numero_processo": formatar_numero_processo_cnj(item['numero_processo']),
+            "polo": item['polo'],
+            "recebido_em": item['recebido_em'],
+            "id_responsavel": id_responsavel, 
+            "anotacao": item['anotacao'],
+            "status": item['status'],
+            "status_sistema": item['status_sistema'],
+            "setor": item['setor'],
+            "prazo": data_agendamento_formatada 
+        }
+        
+        processos_list.append(processo)
+
     output_data = {
         "fonte": "OneRequest",
-        "solicitacoes": solicitacoes_list
+        "processos": processos_list
     }
 
-    # Converte o objeto final para uma string JSON formatada
     json_output = json.dumps(output_data, indent=4, ensure_ascii=False)
 
-    # Cria uma resposta Flask com o conteúdo JSON
     return Response(
         json_output,
         mimetype="application/json",
@@ -191,9 +237,7 @@ def exportar_json():
     )
 
 
-
-
-# --- Rota de API para Gráfico (ATUALIZADA) ---
+# --- Rota de API para Gráfico ---
 @app.route('/api/recebimentos')
 @login_required
 def api_recebimentos():
@@ -295,6 +339,93 @@ def deletar_usuario_action():
         database.deletar_usuario(user_id)
         flash('Usuário deletado.', 'success')
     return redirect(url_for('listar_usuarios'))
+
+# --- NOVA ROTA DE API ---
+@app.route('/api/criar-tarefa', methods=['POST'])
+@login_required
+def api_criar_tarefa():
+    # Pega o ID da solicitação enviado pelo JavaScript
+    dados = request.json
+    solicitacao_id = dados.get('numero_solicitacao')
+    if not solicitacao_id:
+        return jsonify({'status': 'erro', 'mensagem': 'Nenhum ID de solicitação fornecido.'}), 400
+
+    # 1. Obter o mapa de usuários (Nome -> ID) do Legal One
+    try:
+        user_map = database.obter_mapa_usuarios_id()
+    except Exception as e:
+        return jsonify({'status': 'erro', 'mensagem': f'Erro ao buscar mapa de usuários: {e}'}), 500
+
+    # 2. Obter os dados completos da solicitação específica
+    conn = sqlite3.connect(database.DB_SOLICITACOES)
+    conn.row_factory = sqlite3.Row
+    solicitacao_raw = conn.execute("SELECT * FROM solicitacoes WHERE numero_solicitacao = ?", (solicitacao_id,)).fetchone()
+    conn.close()
+
+    if not solicitacao_raw:
+        return jsonify({'status': 'erro', 'mensagem': 'Solicitação não encontrada.'}), 404
+
+    # 3. Formatar os dados da solicitação
+    item = dict(solicitacao_raw)
+    
+    # Formata data_agendamento (AAAA-MM-DD para DD/MM/AAAA)
+    data_agendamento_formatada = item['data_agendamento']
+    try:
+        data_obj = datetime.strptime(item['data_agendamento'], '%Y-%m-%d').date()
+        data_agendamento_formatada = data_obj.strftime('%d/%m/%Y')
+    except (ValueError, TypeError):
+        pass 
+    
+    # Busca o ID do responsável
+    responsavel_name = item.get('responsavel')
+    id_responsavel = user_map.get(responsavel_name) # Retorna ID ou None
+
+    # Monta o dicionário "processo"
+    processo = {
+        "id": item['id'],
+        "numero_solicitacao": item['numero_solicitacao'],
+        "titulo": item['titulo'],
+        "npj_direcionador": item['npj_direcionador'],
+        "vencimento": item['prazo'], 
+        "texto_dmi": item['texto_dmi'],
+        "numero_processo": formatar_numero_processo_cnj(item['numero_processo']),
+        "polo": item['polo'],
+        "recebido_em": item['recebido_em'],
+        "id_responsavel": id_responsavel, 
+        "anotacao": item['anotacao'],
+        "status": item['status'],
+        "status_sistema": item['status_sistema'],
+        "setor": item['setor'],
+        "prazo": data_agendamento_formatada 
+    }
+
+    # 4. Monta o payload final para a API (com lote de 1 item)
+    output_data = {
+        "fonte": "OneRequest",
+        "processos": [processo] # Envia a tarefa única dentro da lista
+    }
+
+    # 5. Envia o POST para a API externa
+    API_URL = "http://192.168.0.66:8000/api/v1/tasks/batch-create"
+    
+    try:
+        response = requests.post(API_URL, json=output_data, timeout=10)
+        
+        # Verifica se a API respondeu com sucesso
+        if response.status_code == 200 or response.status_code == 201:
+            return jsonify({'status': 'sucesso', 'mensagem': 'Tarefa criada com sucesso!'})
+        else:
+            # Retorna o erro que a API deu
+            return jsonify({'status': 'erro', 'mensagem': f'API respondeu com erro {response.status_code}: {response.text}'}), 500
+
+    except requests.exceptions.ConnectionError:
+        return jsonify({'status': 'erro', 'mensagem': f'Não foi possível conectar à API em {API_URL}. Verifique a rede/VPN.'}), 500
+    except requests.exceptions.Timeout:
+        return jsonify({'status': 'erro', 'mensagem': 'A API demorou para responder (Timeout).'}), 500
+    except Exception as e:
+        return jsonify({'status': 'erro', 'mensagem': f'Ocorreu um erro inesperado: {e}'}), 500
+# --- FIM DA NOVA ROTA ---
+
 
 if __name__ == '__main__':
     if not os.path.exists('templates'): os.makedirs('templates')

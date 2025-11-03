@@ -104,7 +104,7 @@
                 <th class="col-anotacao">Campo de Observação</th>
                 <th class="col-status">Status</th>
                 <th class="col-dmi">Texto DMI</th>
-            </tr>
+                <th class="col-acoes">Ações</th> </tr>
         </thead>
         <tbody>
             {% if solicitacoes %}
@@ -163,11 +163,16 @@
                 <td>
                     <div class="texto-dmi">{{ item['texto_dmi'] }}</div>
                 </td>
+                <td>
+                    <button class="api-task-btn" data-id="{{ item['numero_solicitacao'] }}">
+                        Criar Tarefa
+                    </button>
+                </td>
             </tr>
             {% endfor %}
             {% else %}
             <tr>
-                <td colspan="13" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                <td colspan="14" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
             </tr>
             {% endif %}
         </tbody>
@@ -178,8 +183,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // O script de salvar JÁ FUNCIONA com type="date"
-        // Não precisamos de alterações aqui.
+        // Script para salvar as alterações da tabela (sem alteração)
         const inputs = document.querySelectorAll('tbody .form-control');
         inputs.forEach(input => {
             input.addEventListener('change', () => {
@@ -217,7 +221,54 @@
             });
         });
 
-        // Script para renderizar o gráfico (sem alterações)
+        // --- SCRIPT DO NOVO BOTÃO "CRIAR TAREFA" ---
+        const apiButtons = document.querySelectorAll('.api-task-btn');
+        apiButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const numeroSolicitacao = button.dataset.id;
+                
+                // Desabilita o botão e muda o texto
+                button.disabled = true;
+                button.textContent = 'Enviando...';
+                button.classList.add('loading');
+
+                fetch('/api/criar-tarefa', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        numero_solicitacao: numeroSolicitacao
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'sucesso') {
+                        alert(`Sucesso: ${data.mensagem}`);
+                        // Opcional: mudar a cor do botão para verde
+                        button.style.backgroundColor = '#5cb85c'; // Verde
+                        button.textContent = 'Enviada!';
+                    } else {
+                        alert(`Erro ao criar tarefa: ${data.mensagem}`);
+                        // Reabilita o botão se der erro
+                        button.disabled = false;
+                        button.textContent = 'Criar Tarefa';
+                        button.classList.remove('loading');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro no fetch:', error);
+                    alert('Erro de conexão. Verifique o console.');
+                    button.disabled = false;
+                    button.textContent = 'Criar Tarefa';
+                    button.classList.remove('loading');
+                });
+            });
+        });
+        // --- FIM DO NOVO SCRIPT ---
+
+
+        // Script para renderizar o gráfico (sem alteração)
         let recebimentosChart = null; 
 
         function renderizarGrafico() {
