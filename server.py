@@ -360,7 +360,7 @@ def deletar_usuario_action():
         flash('Usuário deletado.', 'success')
     return redirect(url_for('listar_usuarios'))
 
-# --- ROTA API "CRIAR TAREFA" (Sem alteração) ---
+# --- ROTA API "CRIAR TAREFA" (ATUALIZADA) ---
 @app.route('/api/criar-tarefa', methods=['POST'])
 @login_required
 def api_criar_tarefa():
@@ -395,6 +395,10 @@ def api_criar_tarefa():
         data_agendamento_formatada = data_obj.strftime('%d/%m/%Y')
     except (ValueError, TypeError):
         pass 
+    
+    # --- VALIDAÇÃO (baseada no Log 3) ---
+    if not item['data_agendamento']:
+        return jsonify({'status': 'erro', 'mensagem': "O campo 'Data p/ agendamento' (prazo) é obrigatório para enviar à API."}), 400
     
     # Busca o ID do responsável
     responsavel_name = item.get('responsavel')
@@ -431,9 +435,13 @@ def api_criar_tarefa():
     try:
         response = requests.post(API_URL, json=output_data, timeout=10)
         
-        # Verifica se a API respondeu com sucesso
-        if response.status_code == 200 or response.status_code == 201:
-            return jsonify({'status': 'sucesso', 'mensagem': 'Tarefa criada com sucesso!'})
+        # --- CORREÇÃO: ACEITAR 202 COMO SUCESSO ---
+        if response.status_code in [200, 201, 202]:
+            msg_sucesso = "Tarefa criada com sucesso!"
+            if response.status_code == 202:
+                msg_sucesso = "Solicitação recebida! A tarefa está sendo processada."
+                
+            return jsonify({'status': 'sucesso', 'mensagem': msg_sucesso})
         else:
             # Retorna o erro que a API deu
             return jsonify({'status': 'erro', 'mensagem': f'API respondeu com erro {response.status_code}: {response.text}'}), 500

@@ -68,11 +68,11 @@
         </div>
         <div>
             <a href="{{ url_for('exportar') }}" class="action-button export btn btn-success btn-sm me-2">
-                <i class="bi bi-file-earmark-excel me-1"></i>
+                <i class="bi bi-file-earmark-excel"></i>
                 Exportar para Excel
             </a>
             <a href="{{ url_for('exportar_json') }}" class="action-button export btn btn-primary btn-sm">
-                <i class="bi bi-filetype-json me-1"></i>
+                <i class="bi bi-filetype-json"></i>
                 Exportar para JSON
             </a>
         </div>
@@ -81,7 +81,7 @@
 </section>
 
 <section class="results-section">
-    <div class="card-header d-flex justify-content-between align-items-center" style="padding: 1rem 0;">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">
             <i class="bi bi-card-list me-2"></i>
             Solicitações Abertas ({{ solicitacoes|length }})
@@ -218,14 +218,75 @@
         </div>
     </div>
 </div>
+<div class="modal-overlay" id="confirm-task-modal-overlay">
+    <div class="confirm-modal-container" id="confirm-task-modal-container">
+        <div class="modal-header">
+            <h2><i class="bi bi-exclamation-triangle-fill"></i> Confirmar Envio</h2>
+            <button class="close-btn" id="confirm-modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Você tem certeza que deseja enviar esta tarefa para a API?</p>
+            <p>Os seguintes dados (baseados no estado ATUAL da linha) serão enviados:</p>
+            
+            <div class="modal-info-grid">
+                <div class="modal-info-item full-width">
+                    <label>Nº Processo</label>
+                    <p id="confirm-processo"></p>
+                </div>
+                <div class="modal-info-item">
+                    <label>Responsável</label>
+                    <p id="confirm-responsavel"></p>
+                </div>
+                <div class="modal-info-item">
+                    <label>Prazo da Tarefa (Agendado)</label>
+                    <p id="confirm-prazo-tarefa"></p>
+                </div>
+                <div class="modal-info-item">
+                    <label>Vencimento DMI (Original)</label>
+                    <p id="confirm-vencimento-dmi"></p>
+                </div>
+                
+                <div class="modal-info-item">
+                    <label>Setor</label>
+                    <p id="confirm-setor"></p>
+                </div>
+                 <div class="modal-info-item">
+                    <label>Status</label>
+                    <p id="confirm-status"></p>
+                </div>
+                <div class="modal-info-item full-width">
+                    <label>Anotação</label>
+                    <p id="confirm-anotacao" style="white-space: pre-wrap;"></p>
+                </div>
+            </div>
+
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn-cancel" id="confirm-cancel-btn">Cancelar</button>
+            <button class="modal-btn-confirm" id="confirm-send-btn">Confirmar Envio</button>
+        </div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
+    // Função helper para formatar data
+    function formatarData(dataISO) { // AAAA-MM-DD
+        if (!dataISO) return 'N/A';
+        try {
+            const [ano, mes, dia] = dataISO.split('-');
+            if (!ano || !mes || !dia) return dataISO; // Retorna original se não for AAAA-MM-DD
+            return `${dia}/${mes}/${ano}`;
+        } catch (e) {
+            return dataISO; // Retorna o original se falhar
+        }
+    }
+
+
     document.addEventListener('DOMContentLoaded', () => {
 
         // ===============================================
         // SCRIPT 1: Salvar campos rápidos (DROPDOWNS, DATA)
-        // (Anotação foi removida daqui)
         // ===============================================
         const inputs = document.querySelectorAll('tbody .form-control');
         inputs.forEach(input => {
@@ -237,7 +298,6 @@
                 const data_agendamento = row.querySelector('[name="data_agendamento"]').value;
                 const status = row.querySelector('[name="status"]').value;
 
-                // Mostra feedback visual
                 row.style.transition = 'background-color 0.5s ease';
                 row.style.backgroundColor = 'rgba(91, 192, 222, 0.2)'; // Azul
                 
@@ -250,72 +310,30 @@
                         status: status,
                         setor: setor,
                         data_agendamento: data_agendamento
-                        // 'anotacao' foi removida
                     })
                 })
                 .then(response => response.json())
                 .then(data => {
                     console.log('Sucesso (campos rápidos):', data);
-                    setTimeout(() => row.style.backgroundColor = '', 500); // Remove feedback
+                    setTimeout(() => row.style.backgroundColor = '', 500); 
                 })
                 .catch(error => {
                     console.error('Erro:', error);
-                    row.style.backgroundColor = ''; // Remove feedback
+                    row.style.backgroundColor = ''; 
                     alert('Não foi possível salvar os dados.');
                 });
             });
         });
 
+        
         // ===============================================
-        // SCRIPT 2: Botão "Criar Tarefa" (Sem alteração)
+        // SCRIPT 2: Lógica do MODAL DE DETALHES
         // ===============================================
-        const apiButtons = document.querySelectorAll('.api-task-btn');
-        apiButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const numeroSolicitacao = button.dataset.id;
-                
-                button.disabled = true;
-                button.textContent = 'Enviando...';
-                button.classList.add('loading');
-
-                fetch('/api/criar-tarefa', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', },
-                    body: JSON.stringify({ numero_solicitacao: numeroSolicitacao })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'sucesso') {
-                        alert(`Sucesso: ${data.mensagem}`);
-                        button.style.backgroundColor = '#5cb85c'; // Verde
-                        button.textContent = 'Enviada!';
-                        button.classList.add('success');
-                    } else {
-                        alert(`Erro ao criar tarefa: ${data.mensagem}`);
-                        button.disabled = false;
-                        button.textContent = 'Criar Tarefa';
-                        button.classList.remove('loading');
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro no fetch:', error);
-                    alert('Erro de conexão. Verifique o console.');
-                    button.disabled = false;
-                    button.textContent = 'Criar Tarefa';
-                    button.classList.remove('loading');
-                });
-            });
-        });
-
-        // ===============================================
-        // SCRIPT 3: Lógica do MODAL (NOVO)
-        // ===============================================
-        const modalOverlay = document.getElementById('details-modal-overlay');
-        const modalCloseBtn = document.getElementById('modal-close-btn');
+        const detailsModalOverlay = document.getElementById('details-modal-overlay');
+        const detailsModalCloseBtn = document.getElementById('modal-close-btn');
         const detailsButtons = document.querySelectorAll('.details-btn');
         const modalSaveBtn = document.getElementById('modal-save-anotacao');
         
-        // Elementos do Modal
         const modalTitle = document.getElementById('modal-title');
         const modalNumSol = document.getElementById('modal-num-solicitacao');
         const modalPrazoOrig = document.getElementById('modal-prazo-original');
@@ -324,19 +342,16 @@
         const modalTitulo = document.getElementById('modal-titulo-dmi');
         const modalAnotacao = document.getElementById('modal-anotacao');
         const modalTextoDMI = document.getElementById('modal-texto-dmi');
+        let currentDetailsSolicitacaoId = null;
 
-        // ID da solicitação que está aberta no modal
-        let currentModalSolicitacaoId = null;
-
-        // Abrir o Modal
+        // Abrir Modal de Detalhes
         detailsButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const row = button.closest('tr');
-                currentModalSolicitacaoId = row.dataset.id; // Salva o ID
+                currentDetailsSolicitacaoId = row.dataset.id; 
 
-                // Pega os dados dos atributos data-* da linha
-                modalTitle.textContent = `Detalhes: ${currentModalSolicitacaoId}`;
-                modalNumSol.textContent = currentModalSolicitacaoId;
+                modalTitle.textContent = `Detalhes: ${currentDetailsSolicitacaoId}`;
+                modalNumSol.textContent = currentDetailsSolicitacaoId;
                 modalPrazoOrig.textContent = row.dataset.prazoOriginal || 'N/A';
                 modalRecebido.textContent = row.dataset.recebido || 'N/A';
                 modalPolo.textContent = row.dataset.polo || 'N/A';
@@ -344,25 +359,25 @@
                 modalAnotacao.value = row.dataset.anotacao || '';
                 modalTextoDMI.value = row.dataset.textoDmi || 'Nenhum texto DMI encontrado.';
 
-                modalOverlay.classList.add('active');
+                detailsModalOverlay.classList.add('active');
             });
         });
 
-        // Fechar o Modal
-        const closeModal = () => {
-            modalOverlay.classList.remove('active');
-            currentModalSolicitacaoId = null;
+        // Fechar Modal de Detalhes
+        const closeDetailsModal = () => {
+            detailsModalOverlay.classList.remove('active');
+            currentDetailsSolicitacaoId = null;
         };
-        modalCloseBtn.addEventListener('click', closeModal);
-        modalOverlay.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) {
-                closeModal();
+        detailsModalCloseBtn.addEventListener('click', closeDetailsModal);
+        detailsModalOverlay.addEventListener('click', (e) => {
+            if (e.target === detailsModalOverlay) {
+                closeDetailsModal();
             }
         });
 
-        // Salvar Anotação (dentro do Modal)
+        // Salvar Anotação (dentro do Modal de Detalhes)
         modalSaveBtn.addEventListener('click', () => {
-            if (!currentModalSolicitacaoId) return;
+            if (!currentDetailsSolicitacaoId) return;
 
             const novaAnotacao = modalAnotacao.value;
             modalSaveBtn.disabled = true;
@@ -372,20 +387,19 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', },
                 body: JSON.stringify({
-                    numero_solicitacao: currentModalSolicitacaoId,
+                    numero_solicitacao: currentDetailsSolicitacaoId,
                     anotacao: novaAnotacao
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'sucesso') {
-                    // Atualiza o data-attribute na linha da tabela
-                    const row = document.querySelector(`tr[data-id="${currentModalSolicitacaoId}"]`);
+                    const row = document.querySelector(`tr[data-id="${currentDetailsSolicitacaoId}"]`);
                     if (row) {
                         row.dataset.anotacao = novaAnotacao;
                     }
                     alert('Anotação salva!');
-                    closeModal();
+                    closeDetailsModal();
                 } else {
                     alert('Erro ao salvar: ' + data.mensagem);
                 }
@@ -397,6 +411,126 @@
             .finally(() => {
                 modalSaveBtn.disabled = false;
                 modalSaveBtn.textContent = 'Salvar Anotação';
+            });
+        });
+
+
+        // ===============================================
+        // SCRIPT 3: Lógica do MODAL DE CONFIRMAÇÃO (ATUALIZADO)
+        // ===============================================
+        const apiButtons = document.querySelectorAll('.api-task-btn');
+        const confirmModalOverlay = document.getElementById('confirm-task-modal-overlay');
+        const confirmModalCloseBtn = document.getElementById('confirm-modal-close-btn');
+        const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+        const confirmSendBtn = document.getElementById('confirm-send-btn');
+        let originalApiButton = null; 
+
+        // Elementos do Modal de Confirmação
+        const confirmProcesso = document.getElementById('confirm-processo');
+        const confirmResponsavel = document.getElementById('confirm-responsavel');
+        const confirmPrazoTarefa = document.getElementById('confirm-prazo-tarefa');
+        const confirmVencimentoDMI = document.getElementById('confirm-vencimento-dmi');
+        const confirmSetor = document.getElementById('confirm-setor'); 
+        const confirmStatus = document.getElementById('confirm-status'); 
+        const confirmAnotacao = document.getElementById('confirm-anotacao');
+        
+        // Abrir o Modal de Confirmação (ATUALIZADO)
+        apiButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                
+                originalApiButton = button; 
+                const row = button.closest('tr');
+                const numeroSolicitacao = button.dataset.id;
+                
+                // Pega os valores ATUAIS dos campos na linha
+                const responsavel = row.querySelector('[name="responsavel"]').value;
+                const dataAgendamento = row.querySelector('[name="data_agendamento"]').value;
+                const setor = row.querySelector('[name="setor"]').value;
+                const status = row.querySelector('[name="status"]').value;
+                
+                // --- VALIDAÇÃO ADICIONADA ---
+                // Verifica se a data (que a API disse ser obrigatória) está preenchida
+                if (!dataAgendamento) {
+                    alert('Erro: O campo "Data p/ agendamento" (prazo) é obrigatório para criar a tarefa.');
+                    return; // Para a execução, nem abre o modal
+                }
+                // --- FIM DA VALIDAÇÃO ---
+                
+                // Pega dados estáticos
+                const anotacao = row.dataset.anotacao; 
+                const numeroProcesso = row.cells[1].textContent.trim();
+                const prazoOriginal = row.dataset.prazoOriginal;
+
+                // Popula o modal de confirmação
+                confirmProcesso.textContent = numeroProcesso || 'N/A';
+                confirmResponsavel.textContent = responsavel;
+                confirmPrazoTarefa.textContent = formatarData(dataAgendamento);
+                confirmVencimentoDMI.textContent = prazoOriginal || 'N/A';
+                confirmSetor.textContent = setor;
+                confirmStatus.textContent = status;
+                confirmAnotacao.textContent = anotacao || '(Sem anotação)';
+                
+                confirmSendBtn.dataset.id = numeroSolicitacao;
+                confirmModalOverlay.classList.add('active');
+            });
+        });
+        
+        // Fechar o Modal de Confirmação
+        const closeConfirmModal = () => {
+            confirmModalOverlay.classList.remove('active');
+            confirmSendBtn.disabled = false;
+            confirmSendBtn.textContent = 'Confirmar Envio';
+            originalApiButton = null;
+        };
+        confirmModalCloseBtn.addEventListener('click', closeConfirmModal);
+        confirmCancelBtn.addEventListener('click', closeConfirmModal);
+        confirmModalOverlay.addEventListener('click', (e) => {
+            if (e.target === confirmModalOverlay) {
+                closeConfirmModal();
+            }
+        });
+
+        // Enviar a Tarefa (clicando em "Confirmar Envio")
+        confirmSendBtn.addEventListener('click', () => {
+            const numeroSolicitacao = confirmSendBtn.dataset.id;
+            if (!numeroSolicitacao || !originalApiButton) return;
+
+            confirmSendBtn.disabled = true;
+            confirmSendBtn.textContent = 'Enviando...';
+            
+            originalApiButton.disabled = true;
+            originalApiButton.textContent = 'Enviando...';
+            originalApiButton.classList.add('loading');
+
+            fetch('/api/criar-tarefa', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', },
+                body: JSON.stringify({ numero_solicitacao: numeroSolicitacao })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'sucesso') {
+                    alert(`Sucesso: ${data.mensagem}`); // A mensagem agora será "Solicitação recebida!"
+                    originalApiButton.style.backgroundColor = '#5cb85c'; // Verde
+                    originalApiButton.textContent = 'Enviada!';
+                    originalApiButton.classList.add('success');
+                    originalApiButton.disabled = true; 
+                } else {
+                    alert(`Erro ao criar tarefa: ${data.mensagem}`);
+                    originalApiButton.disabled = false;
+                    originalApiButton.textContent = 'Criar Tarefa';
+                    originalApiButton.classList.remove('loading');
+                }
+            })
+            .catch(error => {
+                console.error('Erro no fetch:', error);
+                alert('Erro de conexão. Verifique o console.');
+                originalApiButton.disabled = false;
+                originalApiButton.textContent = 'Criar Tarefa';
+                originalApiButton.classList.remove('loading');
+            })
+            .finally(() => {
+                closeConfirmModal();
             });
         });
 

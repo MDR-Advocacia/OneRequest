@@ -259,6 +259,30 @@ body {
     padding: 0.4rem 0.8rem;
 }
 
+/* --- NOVOS ESTILOS PARA BOTÕES DE EXPORTAÇÃO --- */
+.action-button .bi {
+    margin-right: 0.4rem;
+    vertical-align: text-bottom;
+}
+
+.action-button.btn-success {
+    background-color: var(--kpi-amanha); /* Verde */
+    color: #fff;
+}
+.action-button.btn-success:hover {
+    background-color: #4cae4c;
+}
+
+.action-button.btn-primary {
+    background-color: var(--kpi-futuras); /* Azul */
+    color: #fff;
+}
+.action-button.btn-primary:hover {
+    background-color: var(--accent-color-dark);
+}
+/* --- FIM DOS NOVOS ESTILOS --- */
+
+
 /* --- Tabela Principal --- */
 .table-wrapper {
     width: 100%;
@@ -357,7 +381,7 @@ body {
 .details-btn:hover { background-color: #5a6268; }
 
 
-/* --- ESTILOS DO NOVO MODAL (ADICIONADOS) --- */
+/* --- ESTILOS DO MODAL DE DETALHES --- */
 
 /* O Fundo escuro (Overlay) */
 .modal-overlay {
@@ -494,6 +518,7 @@ body {
 .modal-footer {
     display: flex;
     justify-content: flex-end;
+    gap: 1rem; /* Adicionado */
     margin-top: 1.5rem;
     padding-top: 1rem;
     border-top: 1px solid var(--border-color);
@@ -511,6 +536,66 @@ body {
 }
 .modal-save-btn:hover { background-color: #4cae4c; }
 .modal-save-btn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+}
+
+
+/* --- ESTILOS DO MODAL DE CONFIRMAÇÃO (NOVO) --- */
+
+/* O container do modal de confirmação é menor */
+.confirm-modal-container {
+    background-color: var(--card-color);
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px; /* Menor */
+    max-height: 90vh;
+    overflow-y: auto;
+    border-top: 5px solid var(--kpi-hoje); /* Laranja para "Atenção" */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .confirm-modal-container {
+    transform: scale(1);
+}
+
+.confirm-modal-container .modal-header h2 {
+    color: var(--kpi-hoje); /* Laranja */
+}
+
+/* Botões de Cancelar/Confirmar */
+.modal-btn-cancel {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: transparent;
+    color: var(--text-muted);
+}
+.modal-btn-cancel:hover {
+    background-color: var(--text-muted);
+    color: var(--card-color);
+}
+
+.modal-btn-confirm {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: var(--kpi-amanha); /* Verde */
+    color: #fff;
+}
+.modal-btn-confirm:hover {
+    background-color: #4cae4c;
+}
+.modal-btn-confirm:disabled {
     background-color: #666;
     cursor: not-allowed;
 }
