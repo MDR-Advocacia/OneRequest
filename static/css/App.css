@@ -1,297 +1,605 @@
-/* ============================================== */
-/* ===      RESET E ESTILOS GLOBAIS         === */
-/* ============================================== */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* --- Reset Básico e Cores --- */
+:root {
+    --bg-color: #1a1a2e;
+    --card-color: #16213e;
+    --text-color: #e0e0e0;
+    --text-muted: #a0a0a0;
+    --border-color: #0f3460;
+    --accent-color: #5bc0de;
+    --accent-color-dark: #31b0d5;
+    
+    --kpi-vencidas: #d9534f;
+    --kpi-hoje: #f0ad4e;
+    --kpi-amanha: #5cb85c;
+    --kpi-futuras: #5bc0de;
 }
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(120deg, #1d2b4b 0%, #3a506b 100%);
-  color: #e0e0e0;
-  min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
 }
 
-/* ============================================== */
-/* ===           ESTRUTURA GERAL             === */
-/* ============================================== */
-.App {
-  text-align: center;
+/* --- Layout Principal e Cabeçalho --- */
+.container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
 }
 
-.App-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 2.5rem;
-  font-size: calc(10px + 1vmin);
-  color: white;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    flex-wrap: wrap; /* <-- CORREÇÃO DA QUEBRA DO HEADER */
+    gap: 1rem; /* <-- Espaçamento para quando quebrar a linha */
 }
 
-.header-left, .header-right {
+.header .logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--text-color);
+    text-decoration: none;
     display: flex;
     align-items: center;
-    gap: 1rem;
-    flex: 1;
-}
-.header-right {
-    justify-content: flex-end;
-}
-.header-title {
-    font-weight: bold;
-    font-size: 1.2rem;
 }
 
+.header .logo img {
+    height: 30px;
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+/* Links de Navegação (Adicionado) */
 .main-nav {
     display: flex;
+    gap: 1.5rem;
+    flex-grow: 1;
     justify-content: center;
-    gap: 2.5rem;
-    flex: 2;
 }
 .nav-link {
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-muted);
     text-decoration: none;
     font-weight: 500;
-    font-size: 1rem;
-    padding: 8px 0;
-    border-bottom: 3px solid transparent;
-    transition: all 0.3s ease;
+    padding-bottom: 5px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease-in-out;
 }
 .nav-link:hover {
-    color: #ffffff;
+    color: var(--text-color);
 }
 .nav-link.active {
-    color: #ffffff;
-    border-bottom-color: #5bc0de;
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+/* Fim Links de Navegação */
+
+.header .user-info {
+    font-size: 0.9rem;
+    min-width: 150px; /* Garante espaço */
+    text-align: right;
 }
 
-.header-logo {
-  height: 40px;
+.header .user-info a {
+    color: var(--accent-color);
+    text-decoration: none;
+    margin-left: 10px;
 }
 
-/* --- CORREÇÃO APLICADA AQUI --- */
-.panel-container {
-  padding: 2rem;
-  max-width: 95%;
-  margin: 0 auto;
+.header .user-info a:hover {
+    text-decoration: underline;
 }
 
-/* --- CORREÇÃO APLICADA AQUI --- */
-.input-section, .results-section {
-  padding: 2rem;
-  text-align: left;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
-  margin-bottom: 2rem; 
-}
-
-.input-section h2, .results-section h2 {
-  margin-bottom: 1.5rem;
-  color: #ffffff;
-  border-bottom: 2px solid #5bc0de;
-  padding-bottom: 0.5rem;
-  display: inline-block;
-}
-
-/* ============================================== */
-/* ===           INPUTS E BOTÕES             === */
-/* ============================================== */
-
-input.form-control, select.form-control, .form-group input, .form-group select {
-  width: 100%;
-  padding: 10px;
-  border-radius: 4px;
-  border: 1px solid #4a5568;
-  background-color: #2d3748;
-  color: white;
-  font-size: 0.9em;
-}
-select.form-control { cursor: pointer; }
-.button-group { display: flex; gap: 1rem; }
-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  background-color: #5bc0de;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(91, 192, 222, 0.4);
-}
-button.secondary-button {
-  background-color: transparent;
-  border: 2px solid #5bc0de;
-}
-button.secondary-button:hover:not(:disabled) { background-color: #5bc0de; }
-button.header-button {
-  background-color: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  margin-left: 10px;
-}
-button.header-button:hover { background-color: rgba(255, 255, 255, 0.3); }
-button.danger { background-color: #c9302c; }
-
-/* ============================================== */
-/* ===   COMPONENTES ESPECÍFICOS (CRUD etc.)   === */
-/* ============================================== */
-.form-group { margin-bottom: 15px; }
-.form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-.form-group small { color: #a0a0a0; }
-.user-role {
-  background-color: #5bc0de;
-  color: #1a202c;
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.8em;
-  font-weight: bold;
-}
+/* Mensagens Flash (Alerta) */
 .alert {
     padding: 1rem;
     margin-bottom: 1rem;
-    border: 1px solid transparent;
-    border-radius: .25rem;
+    border-radius: 8px;
+    border: 1px solid;
 }
-.alert-success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
-.alert-danger { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
-
-/* ============================================== */
-/* ===     ESTILOS MELHORADOS PARA TABELA      === */
-/* ============================================== */
-.main-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  color: #e0e0e0;
-  table-layout: fixed;
-  word-wrap: break-word;
-}
-
-.main-table .col-setor {
-    /* Defina uma largura. 
-       Talvez 120px ou 10%? 
-       Ajuste o valor para ficar bom no seu layout. 
-    */
-    width: 120px; 
-}
-.main-table .col-data-agendamento {
-    width: 140px; /* Um input de data é um pouco mais largo */
-    min-width: 140px;
-}
-.main-table thead { background-color: rgba(0, 0, 0, 0.2); }
-.main-table th, .main-table td {
-  padding: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  text-align: left;
-  font-size: 0.85em;
-  vertical-align: middle;
-}
-.main-table th { font-weight: bold; color: #ffffff; }
-.main-table tbody tr:hover { background-color: rgba(91, 192, 222, 0.1); }
-
-/* --- LARGURAS DAS COLUNAS CORRIGIDAS --- */
-.col-farol       { width: 4%; }
-.col-recebido    { width: 9%; }
-.col-solicitacao { width: 11%; }
-.col-processo    { width: 11%; }
-.col-titulo      { width: 15%; }
-.col-prazo       { width: 7%; }
-.col-polo        { width: 5%; }
-.col-responsavel { width: 10%; }
-.col-anotacao    { width: 10%; }
-.col-status      { width: 7%; }
-.col-dmi         { width: 11%; }
+.alert-success { background-color: #2a4; color: #fff; border-color: #2a4; }
+.alert-danger { background-color: #d44; color: #fff; border-color: #d44; }
 
 
-.farol { height: 15px; width: 15px; border-radius: 50%; display: inline-block; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
-.farol-vermelho { background-color: #dc3545; }
-.farol-amarelo  { background-color: #ffc107; }
-.farol-verde    { background-color: #28a745; }
-.farol-cinza    { background-color: #6c757d; }
-
+/* --- Cartões KPI --- */
 .kpi-section {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-.kpi-card { padding: 1.5rem; border-radius: 12px; color: #fff; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-.kpi-card h3 { margin: 0 0 0.5rem 0; font-size: 1.2em; font-weight: 500; }
-.kpi-card p { margin: 0; font-size: 2.5em; font-weight: bold; }
-.kpi-card.vencidas { background: linear-gradient(45deg, #d9534f, #c9302c); }
-.kpi-card.hoje     { background: linear-gradient(45deg, #f0ad4e, #ec971f); }
-.kpi-card.amanha   { background: linear-gradient(45deg, #5bc0de, #31b0d5); }
-.kpi-card.futuras  { background: linear-gradient(45deg, #428bca, #357ebd); }
-.status-info { color: #856404; background-color: rgba(255, 243, 205, 0.1); font-style: italic; }
-.no-data { text-align: center; padding: 2em; color: #a0a0a0; }
-.texto-dmi { white-space: pre-wrap; font-family: monospace; font-size: 1em; max-height: 120px; overflow-y: auto; display: block; background-color: rgba(0, 0, 0, 0.2); padding: 5px; border-radius: 4px; }
-.main-table .form-control { width: 100%; font-size: 1em; padding: 5px; }
-.chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-.total-badge { background-color: #5bc0de; color: white; padding: 8px 15px; border-radius: 20px; font-weight: bold; font-size: 0.9em; }
-.chart-container { position: relative; height: 300px; width: 100%; }
-.filter-form { display:flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
-.filter-group { display: flex; gap: 1.5rem; flex-grow: 1; }
-.form-field { display: flex; flex-direction: column; flex-basis: 300px; }
-.form-field label { margin-bottom: 0.5rem; font-size: 0.9em; font-weight: bold; color: #a0a0a0; }
-.action-group { display: flex; gap: 1rem; }
-.action-button { padding: 10px 20px; border-radius: 8px; color: white; font-weight: bold; text-decoration: none; text-align: center; transition: all 0.3s ease; }
-.action-button.filter { background-color: #5bc0de; border: none; cursor: pointer; font-size: 1rem; }
-.action-button.filter:hover { transform: translateY(-2px); }
-.action-button.export { background-color: #f0ad4e; }
-.action-button.export:hover { background-color: #ec971f; }
-
-/* --- CORREÇÃO ADICIONAL --- */
-/* Remove a margem extra da última seção dentro do painel */
-.panel-container > section:last-child {
-    margin-bottom: 0;
+    margin: 1.5rem 0;
 }
 
-/* Estilo para a nova coluna de Ações */
-.main-table .col-acoes {
-    width: 130px; /* Largura para o botão */
-    min-width: 130px;
+.kpi-card {
+    background-color: var(--card-color);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border-left: 5px solid;
+}
+
+.kpi-card h3 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+    color: var(--text-muted);
+}
+
+.kpi-card p {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 600;
+}
+
+.kpi-card.vencidas { border-color: var(--kpi-vencidas); color: var(--kpi-vencidas); }
+.kpi-card.hoje { border-color: var(--kpi-hoje); color: var(--kpi-hoje); }
+.kpi-card.amanha { border-color: var(--kpi-amanha); color: var(--kpi-amanha); }
+.kpi-card.futuras { border-color: var(--kpi-futuras); color: var(--kpi-futuras); }
+
+/* --- Gráfico --- */
+.results-section {
+    background-color: var(--card-color);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.chart-header h2 {
+    margin: 0;
+}
+.results-section .card-header { /* Para o H5 da tabela */
+    padding: 0 !important;
+    margin-bottom: 1rem;
+}
+.results-section h5 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+
+.total-badge {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+}
+
+/* --- Seção de Filtros --- */
+.input-section {
+    background-color: var(--card-color);
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.input-section h2 {
+    margin-top: 0;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.filter-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.filter-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-field label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 0.3rem;
+}
+
+/* Estilo unificado para inputs e selects */
+.form-control {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.9rem;
+    width: 100%; /* Garante que ocupe o espaço do grid */
+    box-sizing: border-box; /* Importante para padding não estourar */
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 5px var(--accent-color);
+}
+
+/* Botões */
+.action-button {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
     text-align: center;
 }
 
-/* Estilo para o novo botão de API (para ficar menor) */
-.api-task-btn {
+.action-button.filter {
+    background-color: var(--accent-color);
+    color: var(--bg-color);
+}
+.action-button.filter:hover { background-color: var(--accent-color-dark); }
+
+.action-button.export {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+}
+
+/* --- NOVOS ESTILOS PARA BOTÕES DE EXPORTAÇÃO --- */
+.action-button .bi {
+    margin-right: 0.4rem;
+    vertical-align: text-bottom;
+}
+
+.action-button.btn-success {
+    background-color: var(--kpi-amanha); /* Verde */
+    color: #fff;
+}
+.action-button.btn-success:hover {
+    background-color: #4cae4c;
+}
+
+.action-button.btn-primary {
+    background-color: var(--kpi-futuras); /* Azul */
+    color: #fff;
+}
+.action-button.btn-primary:hover {
+    background-color: var(--accent-color-dark);
+}
+/* --- FIM DOS NOVOS ESTILOS --- */
+
+
+/* --- Tabela Principal --- */
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto; /* Adiciona rolagem horizontal */
+    border-radius: 8px;
+}
+
+.main-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1400px; /* Largura mínima aumentada */
+}
+
+.main-table th, .main-table td {
+    padding: 0.8rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+
+.main-table th {
+    background-color: #1e2a4a;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.main-table tbody tr:hover {
+    background-color: #1e2a4a;
+}
+
+.main-table td.no-data {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
+/* Indicador "Farol" */
+.farol {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+}
+.farol-vermelho { background-color: var(--kpi-vencidas); }
+.farol-amarelo { background-color: var(--kpi-hoje); }
+.farol-verde { background-color: var(--kpi-amanha); }
+.farol-cinza { background-color: #666; }
+
+/* Status "Não Encontrado" */
+.status-info {
+    color: var(--kpi-hoje);
+    font-style: italic;
+    font-weight: 500;
+}
+
+/* --- Definição das Larguras das Colunas (ATUALIZADAS) --- */
+.main-table .col-farol { width: 4%; }
+.main-table .col-solicitacao { width: 12%; } /* ADICIONADO */
+.main-table .col-processo { width: 12%; }
+.main-table .col-titulo { width: 15%; } /* ADICIONADO */
+.main-table .col-responsavel { width: 15%; }
+/* .main-table .col-setor { width: 15%; } */ /* REMOVIDO */
+.main-table .col-data-agendamento { width: 12%; }
+.main-table .col-status { width: 10%; }
+.main-table .col-acoes { width: 20%; min-width: 220px; text-align: center;}
+/* --- FIM DAS LARGURAS --- */
+
+
+/* Botões de Ação na Tabela */
+.action-btn {
     padding: 0.3rem 0.6rem;
     font-size: 0.8rem;
-    background-color: #5bc0de; /* Azul claro (info) */
-    color: #fff;
     border: none;
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.3s ease;
+    margin-right: 5px;
 }
 
-.api-task-btn:hover {
-    background-color: #31b0d5;
+.api-task-btn {
+    background-color: var(--accent-color);
+    color: #fff;
+}
+.api-task-btn:hover { background-color: var(--accent-color-dark); }
+.api-task-btn:disabled, .api-task-btn.loading {
+    background-color: #f0ad4e;
+    cursor: not-allowed;
+}
+.api-task-btn.success {
+    background-color: #5cb85c;
 }
 
-/* Estilo para o botão quando estiver carregando */
-.api-task-btn.loading {
-    background-color: #f0ad4e; /* Laranja (aviso) */
+
+.details-btn {
+    background-color: #6c757d;
+    color: #fff;
+}
+.details-btn:hover { background-color: #5a6268; }
+
+
+/* --- ESTILOS DO MODAL DE DETALHES --- */
+
+/* O Fundo escuro (Overlay) */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* A Caixa do Modal */
+.modal-container {
+    background-color: var(--card-color);
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-top: 5px solid var(--accent-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .modal-container {
+    transform: scale(1);
+}
+
+/* Cabeçalho do Modal */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: var(--text-color);
+}
+
+.modal-header .close-btn {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--text-muted);
+    cursor: pointer;
+    background: none;
+    border: none;
+}
+.modal-header .close-btn:hover { color: #fff; }
+
+/* Corpo do Modal */
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.modal-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Responsivo */
+    gap: 1rem;
+}
+
+.modal-info-item {
+    background-color: var(--bg-color);
+    padding: 0.8rem;
+    border-radius: 5px;
+}
+
+.modal-info-item label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.modal-info-item p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-color);
+    word-break: break-word;
+}
+
+.modal-info-item.full-width {
+    grid-column: 1 / -1;
+}
+
+/* Labels para as Textareas e Selects */
+.modal-body label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 0.3rem;
+    display: block;
+}
+
+.modal-text-area {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 0.8rem;
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 120px;
+    resize: vertical;
+}
+
+.modal-text-area:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+/* Rodapé do Modal */
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem; /* Adicionado */
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.modal-save-btn {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: var(--kpi-amanha); /* Verde */
+    color: #fff;
+}
+.modal-save-btn:hover { background-color: #4cae4c; }
+.modal-save-btn:disabled {
+    background-color: #666;
+    cursor: not-allowed;
+}
+
+
+/* --- ESTILOS DO MODAL DE CONFIRMAÇÃO (NOVO) --- */
+
+/* O container do modal de confirmação é menor */
+.confirm-modal-container {
+    background-color: var(--card-color);
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px; /* Menor */
+    max-height: 90vh;
+    overflow-y: auto;
+    border-top: 5px solid var(--kpi-hoje); /* Laranja para "Atenção" */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.modal-overlay.active .confirm-modal-container {
+    transform: scale(1);
+}
+
+.confirm-modal-container .modal-header h2 {
+    color: var(--kpi-hoje); /* Laranja */
+}
+
+/* Botões de Cancelar/Confirmar */
+.modal-btn-cancel {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid var(--text-muted);
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: transparent;
+    color: var(--text-muted);
+}
+.modal-btn-cancel:hover {
+    background-color: var(--text-muted);
+    color: var(--card-color);
+}
+
+.modal-btn-confirm {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: var(--kpi-amanha); /* Verde */
+    color: #fff;
+}
+.modal-btn-confirm:hover {
+    background-color: #4cae4c;
+}
+.modal-btn-confirm:disabled {
+    background-color: #666;
     cursor: not-allowed;
 }

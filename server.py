@@ -10,7 +10,7 @@ import openpyxl
 from io import BytesIO
 import json
 import re 
-import requests # <-- BIBLIOTECA ADICIONADA
+import requests 
 
 app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_pode_ser_qualquer_coisa' 
@@ -281,21 +281,41 @@ def api_recebimentos():
         'total': total_periodo
     })
 
-# --- O restante do server.py (API e CRUD) permanece o mesmo ---
+# --- ROTA ATUALIZAR (Campos rápidos) ATUALIZADA ---
 @app.route('/atualizar', methods=['POST'])
 @login_required
 def atualizar():
-    # Esta rota salva o que o <input type="date"> envia (AAAA-MM-DD)
+    # Salva apenas os campos rápidos da tabela
     dados = request.json
     database.atualizar_campos_edicao(
         dados.get('numero_solicitacao'), 
         dados.get('responsavel'), 
-        dados.get('anotacao'), 
         dados.get('status'),
-        dados.get('setor'),
         dados.get('data_agendamento')
+        # 'setor' e 'anotacao' foram removidos
     )
     return jsonify({'status': 'sucesso'})
+
+# --- ROTA ATUALIZADA (Salva Anotação E Setor do Modal) ---
+@app.route('/api/atualizar-modal', methods=['POST'])
+@login_required
+def api_atualizar_modal():
+    dados = request.json
+    num_solicitacao = dados.get('numero_solicitacao')
+    anotacao = dados.get('anotacao')
+    setor = dados.get('setor') # Adicionado
+    
+    if not num_solicitacao:
+        return jsonify({'status': 'erro', 'mensagem': 'ID da solicitação não fornecido.'}), 400
+
+    try:
+        database.atualizar_modal(num_solicitacao, anotacao, setor) # Função atualizada
+        return jsonify({'status': 'sucesso'})
+    except Exception as e:
+        print(f"Erro ao salvar modal: {e}")
+        return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
+# --- FIM DA ROTA ATUALIZADA ---
+
 
 @app.route('/usuarios')
 @login_required
@@ -340,7 +360,7 @@ def deletar_usuario_action():
         flash('Usuário deletado.', 'success')
     return redirect(url_for('listar_usuarios'))
 
-# --- NOVA ROTA DE API ---
+# --- ROTA API "CRIAR TAREFA" (ATUALIZADA) ---
 @app.route('/api/criar-tarefa', methods=['POST'])
 @login_required
 def api_criar_tarefa():
@@ -350,7 +370,7 @@ def api_criar_tarefa():
     if not solicitacao_id:
         return jsonify({'status': 'erro', 'mensagem': 'Nenhum ID de solicitação fornecido.'}), 400
 
-    # 1. Obter o mapa de usuários (Nome -> ID) do Legal One
+    # 1. Obter o mapa de usuários (Nome -> external_id) do Legal One
     try:
         user_map = database.obter_mapa_usuarios_id()
     except Exception as e:
@@ -376,9 +396,13 @@ def api_criar_tarefa():
     except (ValueError, TypeError):
         pass 
     
+    # --- VALIDAÇÃO (baseada no Log 3) ---
+    if not item['data_agendamento']:
+        return jsonify({'status': 'erro', 'mensagem': "O campo 'Data p/ agendamento' (prazo) é obrigatório para enviar à API."}), 400
+    
     # Busca o ID do responsável
     responsavel_name = item.get('responsavel')
-    id_responsavel = user_map.get(responsavel_name) # Retorna ID ou None
+    id_responsavel = user_map.get(responsavel_name) # Retorna external_id ou None
 
     # Monta o dicionário "processo"
     processo = {
@@ -411,9 +435,14 @@ def api_criar_tarefa():
     try:
         response = requests.post(API_URL, json=output_data, timeout=10)
         
-        # Verifica se a API respondeu com sucesso
-        if response.status_code == 200 or response.status_code == 201:
-            return jsonify({'status': 'sucesso', 'mensagem': 'Tarefa criada com sucesso!'})
+        # --- CORREÇÃO: ACEITAR 202 COMO SUCESSO ---
+        if response.status_code in [200, 201, 202]:
+            msg_sucesso = "Tarefa criada com sucesso!"
+            if response.status_code == 202:
+                # Pega a mensagem da API (ex: "A solicitação... foi recebida")
+                msg_sucesso = response.json().get('message', 'Solicitação recebida! A tarefa está sendo processada.')
+                
+            return jsonify({'status': 'sucesso', 'mensagem': msg_sucesso})
         else:
             # Retorna o erro que a API deu
             return jsonify({'status': 'erro', 'mensagem': f'API respondeu com erro {response.status_code}: {response.text}'}), 500
