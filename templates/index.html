@@ -93,9 +93,8 @@
             <thead>
                 <tr>
                     <th class="col-farol">Farol</th>
-                    <th class="col-processo">Nº Processo</th>
-                    <th class="col-responsavel">Responsável</th>
-                    <th class="col-setor">Setor</th>
+                    <th class="col-solicitacao">Nº Solicitação</th> <th class="col-processo">Nº Processo</th>
+                    <th class="col-titulo">Título DMI</th> <th class="col-responsavel">Responsável</th>
                     <th class="col-data-agendamento">Data p/ agendamento</th>
                     <th class="col-status">Status</th>
                     <th class="col-acoes">Ações</th>
@@ -106,8 +105,7 @@
                 {% for item in solicitacoes %}
                 <tr data-id="{{ item['numero_solicitacao'] }}"
                     data-recebido="{{ item['recebido_em'] }}"
-                    data-titulo="{{ item['titulo'] }}"
-                    data-prazo-original="{{ item['prazo'] }}"
+                    data-setor="{{ item['setor'] }}" data-prazo-original="{{ item['prazo'] }}"
                     data-polo="{{ item['polo'] }}"
                     data-anotacao="{{ item['anotacao'] }}"
                     data-texto-dmi="{{ item['texto_dmi'] }}"
@@ -115,11 +113,11 @@
                     <td>
                         <span class="farol farol-{{ item['farol_status'] }}"></span>
                     </td>
-                    <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %}
+                    <td>{{ item['numero_solicitacao'] }}</td> <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %}
                         class="status-info" {% endif %}>
                         {{ item['numero_processo'] }}
                     </td>
-                    <td>
+                    <td>{{ item['titulo'] }}</td> <td>
                         <select class="form-control" name="responsavel">
                             <option value="N/A" {% if item['responsavel']=='N/A' %}selected{% endif %}>-- Selecione --
                             </option>
@@ -129,15 +127,6 @@
                                 {{ usuario['name'] }}
                             </option>
                             {% endfor %}
-                        </select>
-                    </td>
-                    <td>
-                        <select class="form-control" name="setor">
-                            <option value="N/A" {% if item['setor']=='N/A' %}selected{% endif %}>-- Selecione --</option>
-                            <option value="BB Réu" {% if item['setor']=='BB Réu' %}selected{% endif %}>BB Réu</option>
-                            <option value="BB Recurso" {% if item['setor']=='BB Recurso' %}selected{% endif %}>BB Recurso</option>
-                            <option value="BB Encerramento" {% if item['setor']=='BB Encerramento' %}selected{% endif %}>BB Encerramento</option>
-                            <option value="BB Autor" {% if item['setor']=='BB Autor' %}selected{% endif %}>BB Autor</option>
                         </select>
                     </td>
                     <td>
@@ -153,7 +142,7 @@
                     </td>
                     <td>
                         <button class="action-btn details-btn" data-id="{{ item['numero_solicitacao'] }}">
-                            Detalhes/Anot.
+                            Detalhes/Edição
                         </button>
                         <button class="action-btn api-task-btn" data-id="{{ item['numero_solicitacao'] }}">
                             Criar Tarefa
@@ -163,7 +152,7 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                    <td colspan="7" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                    <td colspan="8" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
                 </tr>
                 {% endif %}
             </tbody>
@@ -174,16 +163,12 @@
 <div class="modal-overlay" id="details-modal-overlay">
     <div class="modal-container" id="details-modal-container">
         <div class="modal-header">
-            <h2 id="modal-title">Detalhes da Solicitação</h2>
+            <h2 id="modal-title">Detalhes e Edição</h2>
             <button class="close-btn" id="modal-close-btn">&times;</button>
         </div>
         <div class="modal-body">
             
             <div class="modal-info-grid">
-                <div class="modal-info-item">
-                    <label>Nº Solicitação</label>
-                    <p id="modal-num-solicitacao"></p>
-                </div>
                  <div class="modal-info-item">
                     <label>Prazo DMI (Original)</label>
                     <p id="modal-prazo-original"></p>
@@ -196,9 +181,18 @@
                     <label>Polo</label>
                     <p id="modal-polo"></p>
                 </div>
-                <div class="modal-info-item full-width">
-                    <label>Título DMI</label>
-                    <p id="modal-titulo-dmi"></p>
+            </div>
+
+            <div class="modal-info-grid">
+                <div>
+                    <label for="modal-setor">Setor</label>
+                    <select id="modal-setor" class="form-control">
+                        <option value="N/A">-- Selecione --</option>
+                        <option value="BB Réu">BB Réu</option>
+                        <option value="BB Recurso">BB Recurso</option>
+                        <option value="BB Encerramento">BB Encerramento</option>
+                        <option value="BB Autor">BB Autor</option>
+                    </select>
                 </div>
             </div>
 
@@ -214,7 +208,7 @@
 
         </div>
         <div class="modal-footer">
-            <button class="modal-save-btn" id="modal-save-anotacao">Salvar Anotação</button>
+            <button class="modal-save-btn" id="modal-save-btn">Salvar Alterações</button>
         </div>
     </div>
 </div>
@@ -246,7 +240,7 @@
                     <p id="confirm-vencimento-dmi"></p>
                 </div>
                 
-                <div class="modal-info-item">
+                 <div class="modal-info-item">
                     <label>Setor</label>
                     <p id="confirm-setor"></p>
                 </div>
@@ -254,7 +248,8 @@
                     <label>Status</label>
                     <p id="confirm-status"></p>
                 </div>
-                <div class="modal-info-item full-width">
+
+                 <div class="modal-info-item full-width">
                     <label>Anotação</label>
                     <p id="confirm-anotacao" style="white-space: pre-wrap;"></p>
                 </div>
@@ -286,7 +281,8 @@
     document.addEventListener('DOMContentLoaded', () => {
 
         // ===============================================
-        // SCRIPT 1: Salvar campos rápidos (DROPDOWNS, DATA)
+        // SCRIPT 1: Salvar campos rápidos (ATUALIZADO)
+        // (Setor foi removido daqui)
         // ===============================================
         const inputs = document.querySelectorAll('tbody .form-control');
         inputs.forEach(input => {
@@ -294,7 +290,6 @@
                 const row = input.closest('tr');
                 const id = row.dataset.id;
                 const responsavel = row.querySelector('[name="responsavel"]').value;
-                const setor = row.querySelector('[name="setor"]').value;
                 const data_agendamento = row.querySelector('[name="data_agendamento"]').value;
                 const status = row.querySelector('[name="status"]').value;
 
@@ -308,8 +303,8 @@
                         numero_solicitacao: id,
                         responsavel: responsavel,
                         status: status,
-                        setor: setor,
                         data_agendamento: data_agendamento
+                        // 'setor' removido
                     })
                 })
                 .then(response => response.json())
@@ -327,20 +322,20 @@
 
         
         // ===============================================
-        // SCRIPT 2: Lógica do MODAL DE DETALHES
+        // SCRIPT 2: Lógica do MODAL DE DETALHES (ATUALIZADO)
         // ===============================================
         const detailsModalOverlay = document.getElementById('details-modal-overlay');
         const detailsModalCloseBtn = document.getElementById('modal-close-btn');
         const detailsButtons = document.querySelectorAll('.details-btn');
-        const modalSaveBtn = document.getElementById('modal-save-anotacao');
+        const modalSaveBtn = document.getElementById('modal-save-btn'); // Botão Salvar
         
+        // Elementos do Modal de Detalhes
         const modalTitle = document.getElementById('modal-title');
-        const modalNumSol = document.getElementById('modal-num-solicitacao');
         const modalPrazoOrig = document.getElementById('modal-prazo-original');
         const modalRecebido = document.getElementById('modal-recebido-em');
         const modalPolo = document.getElementById('modal-polo');
-        const modalTitulo = document.getElementById('modal-titulo-dmi');
         const modalAnotacao = document.getElementById('modal-anotacao');
+        const modalSetor = document.getElementById('modal-setor'); // Dropdown de Setor
         const modalTextoDMI = document.getElementById('modal-texto-dmi');
         let currentDetailsSolicitacaoId = null;
 
@@ -350,13 +345,13 @@
                 const row = button.closest('tr');
                 currentDetailsSolicitacaoId = row.dataset.id; 
 
-                modalTitle.textContent = `Detalhes: ${currentDetailsSolicitacaoId}`;
-                modalNumSol.textContent = currentDetailsSolicitacaoId;
+                // Popula os dados estáticos e de edição
+                modalTitle.textContent = `Detalhes e Edição: ${currentDetailsSolicitacaoId}`;
                 modalPrazoOrig.textContent = row.dataset.prazoOriginal || 'N/A';
                 modalRecebido.textContent = row.dataset.recebido || 'N/A';
                 modalPolo.textContent = row.dataset.polo || 'N/A';
-                modalTitulo.textContent = row.dataset.titulo || 'N/A';
                 modalAnotacao.value = row.dataset.anotacao || '';
+                modalSetor.value = row.dataset.setor || 'N/A'; // Define o valor do dropdown
                 modalTextoDMI.value = row.dataset.textoDmi || 'Nenhum texto DMI encontrado.';
 
                 detailsModalOverlay.classList.add('active');
@@ -375,42 +370,47 @@
             }
         });
 
-        // Salvar Anotação (dentro do Modal de Detalhes)
+        // Salvar Anotação E Setor (dentro do Modal de Detalhes)
         modalSaveBtn.addEventListener('click', () => {
             if (!currentDetailsSolicitacaoId) return;
 
             const novaAnotacao = modalAnotacao.value;
+            const novoSetor = modalSetor.value; // Pega o valor do setor
+
             modalSaveBtn.disabled = true;
             modalSaveBtn.textContent = 'Salvando...';
 
-            fetch('/api/atualizar-anotacao', {
+            fetch('/api/atualizar-modal', { // ROTA ATUALIZADA
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', },
                 body: JSON.stringify({
                     numero_solicitacao: currentDetailsSolicitacaoId,
-                    anotacao: novaAnotacao
+                    anotacao: novaAnotacao,
+                    setor: novoSetor // Envia o setor
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'sucesso') {
+                    // Atualiza os data-attributes na linha da tabela
                     const row = document.querySelector(`tr[data-id="${currentDetailsSolicitacaoId}"]`);
                     if (row) {
                         row.dataset.anotacao = novaAnotacao;
+                        row.dataset.setor = novoSetor;
                     }
-                    alert('Anotação salva!');
+                    alert('Alterações salvas!');
                     closeDetailsModal();
                 } else {
                     alert('Erro ao salvar: ' + data.mensagem);
                 }
             })
             .catch(error => {
-                console.error('Erro ao salvar anotação:', error);
-                alert('Erro de conexão ao salvar anotação.');
+                console.error('Erro ao salvar modal:', error);
+                alert('Erro de conexão ao salvar.');
             })
             .finally(() => {
                 modalSaveBtn.disabled = false;
-                modalSaveBtn.textContent = 'Salvar Anotação';
+                modalSaveBtn.textContent = 'Salvar Alterações';
             });
         });
 
@@ -445,22 +445,20 @@
                 // Pega os valores ATUAIS dos campos na linha
                 const responsavel = row.querySelector('[name="responsavel"]').value;
                 const dataAgendamento = row.querySelector('[name="data_agendamento"]').value;
-                const setor = row.querySelector('[name="setor"]').value;
                 const status = row.querySelector('[name="status"]').value;
                 
-                // --- VALIDAÇÃO ADICIONADA ---
-                // Verifica se a data (que a API disse ser obrigatória) está preenchida
-                if (!dataAgendamento) {
-                    alert('Erro: O campo "Data p/ agendamento" (prazo) é obrigatório para criar a tarefa.');
-                    return; // Para a execução, nem abre o modal
-                }
-                // --- FIM DA VALIDAÇÃO ---
-                
-                // Pega dados estáticos
+                // Pega dados estáticos e do modal
+                const setor = row.dataset.setor; // Pega o setor salvo no dataset
                 const anotacao = row.dataset.anotacao; 
-                const numeroProcesso = row.cells[1].textContent.trim();
+                const numeroProcesso = row.cells[2].textContent.trim(); // Posição da célula mudou
                 const prazoOriginal = row.dataset.prazoOriginal;
 
+                // --- VALIDAÇÃO (Obrigatório ter data) ---
+                if (!dataAgendamento) {
+                    alert('Erro: O campo "Data p/ agendamento" (prazo) é obrigatório para criar a tarefa.');
+                    return; 
+                }
+                
                 // Popula o modal de confirmação
                 confirmProcesso.textContent = numeroProcesso || 'N/A';
                 confirmResponsavel.textContent = responsavel;
@@ -510,7 +508,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'sucesso') {
-                    alert(`Sucesso: ${data.mensagem}`); // A mensagem agora será "Solicitação recebida!"
+                    alert(`Sucesso: ${data.mensagem}`);
                     originalApiButton.style.backgroundColor = '#5cb85c'; // Verde
                     originalApiButton.textContent = 'Enviada!';
                     originalApiButton.classList.add('success');

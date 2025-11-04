@@ -291,30 +291,30 @@ def atualizar():
         dados.get('numero_solicitacao'), 
         dados.get('responsavel'), 
         dados.get('status'),
-        dados.get('setor'),
         dados.get('data_agendamento')
-        # 'anotacao' foi removida
+        # 'setor' e 'anotacao' foram removidos
     )
     return jsonify({'status': 'sucesso'})
 
-# --- NOVA ROTA ADICIONADA (Salvar Anotação do Modal) ---
-@app.route('/api/atualizar-anotacao', methods=['POST'])
+# --- ROTA ATUALIZADA (Salva Anotação E Setor do Modal) ---
+@app.route('/api/atualizar-modal', methods=['POST'])
 @login_required
-def api_atualizar_anotacao():
+def api_atualizar_modal():
     dados = request.json
     num_solicitacao = dados.get('numero_solicitacao')
     anotacao = dados.get('anotacao')
+    setor = dados.get('setor') # Adicionado
     
     if not num_solicitacao:
         return jsonify({'status': 'erro', 'mensagem': 'ID da solicitação não fornecido.'}), 400
 
     try:
-        database.atualizar_anotacao(num_solicitacao, anotacao)
+        database.atualizar_modal(num_solicitacao, anotacao, setor) # Função atualizada
         return jsonify({'status': 'sucesso'})
     except Exception as e:
-        print(f"Erro ao salvar anotação: {e}")
+        print(f"Erro ao salvar modal: {e}")
         return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
-# --- FIM DA NOVA ROTA ---
+# --- FIM DA ROTA ATUALIZADA ---
 
 
 @app.route('/usuarios')
@@ -439,7 +439,8 @@ def api_criar_tarefa():
         if response.status_code in [200, 201, 202]:
             msg_sucesso = "Tarefa criada com sucesso!"
             if response.status_code == 202:
-                msg_sucesso = "Solicitação recebida! A tarefa está sendo processada."
+                # Pega a mensagem da API (ex: "A solicitação... foi recebida")
+                msg_sucesso = response.json().get('message', 'Solicitação recebida! A tarefa está sendo processada.')
                 
             return jsonify({'status': 'sucesso', 'mensagem': msg_sucesso})
         else:

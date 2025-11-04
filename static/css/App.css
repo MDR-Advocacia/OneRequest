@@ -293,7 +293,7 @@ body {
 .main-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 1200px; /* Largura mínima para forçar rolagem se necessário */
+    min-width: 1400px; /* Largura mínima aumentada */
 }
 
 .main-table th, .main-table td {
@@ -340,14 +340,18 @@ body {
     font-weight: 500;
 }
 
-/* --- Definição das Larguras das Colunas (AJUSTADAS) --- */
-.main-table .col-farol { width: 5%; }
-.main-table .col-processo { width: 15%; }
-.main-table .col-responsavel { width: 18%; }
-.main-table .col-setor { width: 15%; }
-.main-table .col-data-agendamento { width: 15%; }
-.main-table .col-status { width: 12%; }
+/* --- Definição das Larguras das Colunas (ATUALIZADAS) --- */
+.main-table .col-farol { width: 4%; }
+.main-table .col-solicitacao { width: 12%; } /* ADICIONADO */
+.main-table .col-processo { width: 12%; }
+.main-table .col-titulo { width: 15%; } /* ADICIONADO */
+.main-table .col-responsavel { width: 15%; }
+/* .main-table .col-setor { width: 15%; } */ /* REMOVIDO */
+.main-table .col-data-agendamento { width: 12%; }
+.main-table .col-status { width: 10%; }
 .main-table .col-acoes { width: 20%; min-width: 220px; text-align: center;}
+/* --- FIM DAS LARGURAS --- */
+
 
 /* Botões de Ação na Tabela */
 .action-btn {
@@ -487,7 +491,7 @@ body {
     grid-column: 1 / -1;
 }
 
-/* Labels para as Textareas */
+/* Labels para as Textareas e Selects */
 .modal-body label {
     font-size: 0.9rem;
     color: var(--text-muted);
