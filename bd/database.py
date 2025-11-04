@@ -133,18 +133,24 @@ def obter_todos_usuarios():
     conn.close()
     return usuarios
 
-# --- FUNÇÃO ATUALIZADA ---
+# --- FUNÇÃO ATUALIZADA (PUXANDO EXTERNAL_ID) ---
 def obter_mapa_usuarios_id():
-    """Retorna um dicionário mapeando 'name' para 'id' da tabela de usuários DO LEGAL ONE."""
+    """Retorna um dicionário mapeando 'name' para 'external_id' da tabela de usuários DO LEGAL ONE."""
     try:
-        conn = conectar(DB_LEGAL_ONE) # <-- CORREÇÃO: Usar o DB_LEGAL_ONE
+        conn = conectar(DB_LEGAL_ONE) # Conecta ao DB_LEGAL_ONE
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name FROM legal_one_users;") # <-- CORREÇÃO: Usar a tabela legal_one_users
-        user_map = {row['name']: row['id'] for row in cursor.fetchall()}
+        cursor.execute("SELECT external_id, name FROM legal_one_users;") # <-- ALTERAÇÃO: Puxa 'external_id'
+        
+        # O mapa agora será Nome -> External_ID
+        user_map = {row['name']: row['external_id'] for row in cursor.fetchall()}
         conn.close()
         return user_map
+        
     except sqlite3.OperationalError as e:
-        print(f"Erro ao buscar mapa de IDs do Legal One: {e}")
+        print(f"Erro ao buscar mapa de IDs (external_id) do Legal One: {e}")
+        if "no such column: external_id" in str(e):
+             print("ERRO CRÍTICO: A coluna 'external_id' não existe na tabela 'legal_one_users'.")
+             print("Verifique se o robô que alimenta o 'database.db' está salvando essa coluna.")
         return {}
 # --- FIM DA FUNÇÃO ATUALIZADA ---
 
@@ -215,15 +221,30 @@ def obter_usuarios_legal_one():
     except sqlite3.OperationalError:
         return []
 
-def atualizar_campos_edicao(num_solicitacao, responsavel, anotacao, status, setor, data_agendamento):
+# --- FUNÇÃO ATUALIZADA (anotação removida) ---
+def atualizar_campos_edicao(num_solicitacao, responsavel, status, setor, data_agendamento):
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("""
-    UPDATE solicitacoes SET responsavel = ?, anotacao = ?, status = ?, setor = ?, data_agendamento = ?
+    UPDATE solicitacoes SET responsavel = ?, status = ?, setor = ?, data_agendamento = ?
     WHERE numero_solicitacao = ?;
-    """, (responsavel, anotacao, status, setor, data_agendamento, num_solicitacao))
+    """, (responsavel, status, setor, data_agendamento, num_solicitacao))
     conn.commit()
     conn.close()
+# --- FIM DA FUNÇÃO ---
+
+# --- NOVA FUNÇÃO ADICIONADA ---
+def atualizar_anotacao(num_solicitacao, anotacao):
+    """Atualiza apenas o campo de anotação."""
+    conn = conectar(DB_SOLICITACOES)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE solicitacoes SET anotacao = ? WHERE numero_solicitacao = ?;",
+        (anotacao, num_solicitacao)
+    )
+    conn.commit()
+    conn.close()
+# --- FIM DA NOVA FUNÇÃO ---
 
 
 def marcar_como_abertas(numeros_solicitacao):
