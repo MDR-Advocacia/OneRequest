@@ -46,8 +46,7 @@
                 <select name="responsavel" class="form-control">
                     <option value="">Todos</option>
                     {% for usuario in usuarios %}
-                    <option value="{{ usuario['name'] }}" {% if filters.responsavel==usuario['name'] %}selected{% endif
-                        %}>
+                    <option value="{{ usuario['name'] }}" {% if filters.responsavel==usuario['name'] %}selected{% endif %}>
                         {{ usuario['name'] }}
                     </option>
                     {% endfor %}
@@ -74,15 +73,12 @@
         </div>
         <div>
             <a href="{{ url_for('exportar') }}" class="action-button export btn btn-success btn-sm me-2">
-                <i class="bi bi-file-earmark-excel"></i>
-                Exportar para Excel
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
             </a>
             <a href="{{ url_for('exportar_json') }}" class="action-button export btn btn-primary btn-sm">
-                <i class="bi bi-filetype-json"></i>
-                Exportar para JSON
+                <i class="bi bi-filetype-json"></i> Exportar JSON
             </a>
         </div>
-        
     </form>
 </section>
 
@@ -99,9 +95,14 @@
             <thead>
                 <tr>
                     <th class="col-farol">Farol</th>
-                    <th class="col-solicitacao">Nº Solicitação</th> <th class="col-processo">Nº Processo</th>
-                    <th class="col-titulo">Título DMI</th> <th class="col-responsavel">Responsável</th>
-                    <th class="col-setor">Setor</th> <th class="col-data-agendamento">Data p/ agendamento</th>
+                    <th class="col-solicitacao">Nº Solicitação</th>
+                    <th class="col-processo">Nº Processo</th>
+                    <th class="col-datas-orig">Prazo DMI</th> <th class="col-polo">Polo</th>
+                    <th class="col-titulo">Título DMI</th>
+                    <th class="col-responsavel">Responsável</th>
+                    <th class="col-setor">Setor</th>
+                    <th class="col-data-agendamento">Prazo Tarefa</th>
+                    <th class="col-anotacao">Anotação</th>
                     <th class="col-status">Status</th>
                     <th class="col-acoes">Ações</th>
                 </tr>
@@ -110,64 +111,79 @@
                 {% if solicitacoes %}
                 {% for item in solicitacoes %}
                 <tr data-id="{{ item['numero_solicitacao'] }}"
-                    data-recebido="{{ item['recebido_em'] }}"
-                    data-prazo-original="{{ item['prazo'] }}"
-                    data-polo="{{ item['polo'] }}"
-                    data-anotacao="{{ item['anotacao'] }}"
                     data-texto-dmi="{{ item['texto_dmi'] }}"
-                    >
-                    <td>
+                    data-recebido="{{ item['recebido_em'] }}">
+                    
+                    <td class="text-center">
                         <span class="farol farol-{{ item['farol_status'] }}"></span>
                     </td>
-                    <td>{{ item['numero_solicitacao'] }}</td> <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %}
-                        class="status-info" {% endif %}>
+                    
+                    <td>{{ item['numero_solicitacao'] }}</td>
+                    
+                    <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %}class="status-info"{% endif %}>
                         {{ item['numero_processo'] }}
                     </td>
-                    <td>{{ item['titulo'] }}</td> <td>
+
+                    <td>
+                        {{ item['prazo'] }}
+                    </td>
+
+                    <td>{{ item['polo'] }}</td>
+
+                    <td title="{{ item['titulo'] }}">{{ item['titulo'] }}</td>
+
+                    <td>
                         <select class="form-control" name="responsavel">
-                            <option value="N/A" {% if item['responsavel']=='N/A' %}selected{% endif %}>-- Selecione --
-                            </option>
+                            <option value="N/A" {% if item['responsavel']=='N/A' %}selected{% endif %}>--</option>
                             {% for usuario in usuarios %}
-                            <option value="{{ usuario['name'] }}" {% if item['responsavel']==usuario['name'] %}selected{%
-                                endif %}>
+                            <option value="{{ usuario['name'] }}" {% if item['responsavel']==usuario['name'] %}selected{% endif %}>
                                 {{ usuario['name'] }}
                             </option>
                             {% endfor %}
                         </select>
                     </td>
+
                     <td>
                         <select class="form-control" name="setor">
-                            <option value="N/A" {% if item['setor']=='N/A' %}selected{% endif %}>-- Selecione --</option>
+                            <option value="N/A" {% if item['setor']=='N/A' %}selected{% endif %}>--</option>
                             <option value="BB Réu" {% if item['setor']=='BB Réu' %}selected{% endif %}>BB Réu</option>
                             <option value="BB Recurso" {% if item['setor']=='BB Recurso' %}selected{% endif %}>BB Recurso</option>
-                            <option value="BB Encerramento" {% if item['setor']=='BB Encerramento' %}selected{% endif %}>BB Encerramento</option>
+                            <option value="BB Encerramento" {% if item['setor']=='BB Encerramento' %}selected{% endif %}>Encerramento</option>
                             <option value="BB Autor" {% if item['setor']=='BB Autor' %}selected{% endif %}>BB Autor</option>
                         </select>
                     </td>
+
                     <td>
                         <input type="date" class="form-control" name="data_agendamento" value="{{ item['data_agendamento'] }}">
                     </td>
+
+                    <td>
+                        <input type="text" class="input-anotacao-tabela" name="anotacao_inline" value="{{ item['anotacao'] }}" placeholder="...">
+                    </td>
+
                     <td>
                         <select class="form-control" name="status">
                             <option value="Não" {% if item['status']=='Não' %}selected{% endif %}>Não</option>
                             <option value="Sim" {% if item['status']=='Sim' %}selected{% endif %}>Sim</option>
-                            <option value="LegalOne?" {% if item['status']=='LegalOne?' %}selected{% endif %}>LegalOne?
-                            </option>
+                            <option value="LegalOne?" {% if item['status']=='LegalOne?' %}selected{% endif %}>L.One?</option>
                         </select>
                     </td>
+
                     <td>
-                        <button class="action-btn details-btn" data-id="{{ item['numero_solicitacao'] }}">
-                            Detalhes/Anot.
-                        </button>
-                        <button class="action-btn api-task-btn" data-id="{{ item['numero_solicitacao'] }}">
-                            Criar Tarefa
-                        </button>
+                        <div style="display: flex; gap: 5px; justify-content: center;">
+                            <button class="action-btn details-btn" title="Ver Detalhes">
+                                <i class="bi bi-eye"></i> DMI
+                            </button>
+                            <button class="action-btn api-task-btn" data-id="{{ item['numero_solicitacao'] }}" title="Criar Tarefa">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
                 {% else %}
                 <tr>
-                    <td colspan="9" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                    <td colspan="12" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
                 </tr>
                 {% endif %}
             </tbody>
@@ -178,42 +194,20 @@
 <div class="modal-overlay" id="details-modal-overlay">
     <div class="modal-container" id="details-modal-container">
         <div class="modal-header">
-            <h2 id="modal-title">Detalhes e Anotação</h2>
+            <h2 id="modal-title">Detalhes da Solicitação</h2>
             <button class="close-btn" id="modal-close-btn">&times;</button>
         </div>
-        <div class="modal-body">
-            
-            <div class="modal-info-grid">
-                 <div class="modal-info-item">
-                    <label>Prazo DMI (Original)</label>
-                    <p id="modal-prazo-original"></p>
-                </div>
-                 <div class="modal-info-item">
-                    <label>Data e Hora de Chegada</label>
-                    <p id="modal-recebido-em"></p>
-                </div>
-                 <div class="modal-info-item">
-                    <label>Polo</label>
-                    <p id="modal-polo"></p>
-                </div>
+        <div class="modal-body modal-body-dmi-only">
+            <div style="font-size: 0.95rem; color: #a0a0a0; margin-bottom: 0.5rem;">
+                <i class="bi bi-calendar-event me-2"></i>
+                Recebido em: <span id="modal-recebido-display" style="color: #5bc0de; font-weight: bold;"></span>
             </div>
 
-            <div>
-                <label for="modal-anotacao">Anotação / Observação</label>
-                <textarea id="modal-anotacao" class="modal-text-area" rows="4"></textarea>
-            </div>
-
-            <div>
-                <label>Texto DMI Completo</label>
-                <textarea id="modal-texto-dmi" class="modal-text-area" rows="8" readonly></textarea>
-            </div>
-
-        </div>
-        <div class="modal-footer">
-            <button class="modal-save-btn" id="modal-save-anotacao">Salvar Anotação</button>
+            <textarea id="modal-texto-dmi" class="modal-text-area" readonly style="height: 400px;"></textarea>
         </div>
     </div>
 </div>
+
 <div class="modal-overlay" id="confirm-task-modal-overlay">
     <div class="confirm-modal-container" id="confirm-task-modal-container">
         <div class="modal-header">
@@ -234,12 +228,8 @@
                     <p id="confirm-responsavel"></p>
                 </div>
                 <div class="modal-info-item">
-                    <label>Prazo da Tarefa (Agendado)</label>
+                    <label>Prazo da Tarefa</label>
                     <p id="confirm-prazo-tarefa"></p>
-                </div>
-                <div class="modal-info-item">
-                    <label>Vencimento DMI (Original)</label>
-                    <p id="confirm-vencimento-dmi"></p>
                 </div>
                  <div class="modal-info-item">
                     <label>Setor</label>
@@ -262,40 +252,47 @@
         </div>
     </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Função helper para formatar data
-    function formatarData(dataISO) { // AAAA-MM-DD
+    // Helper para formatar data simples (AAAA-MM-DD -> DD/MM/AAAA)
+    function formatarData(dataISO) { 
         if (!dataISO) return 'N/A';
         try {
             const [ano, mes, dia] = dataISO.split('-');
-            if (!ano || !mes || !dia) return dataISO; // Retorna original se não for AAAA-MM-DD
+            if (!ano || !mes || !dia) return dataISO; 
             return `${dia}/${mes}/${ano}`;
-        } catch (e) {
-            return dataISO; // Retorna o original se falhar
-        }
+        } catch (e) { return dataISO; }
     }
 
+    // Helper para formatar data e hora (AAAA-MM-DD HH:MM:SS)
+    function formatarDataHora(dataFull) {
+        if (!dataFull) return 'N/A';
+        try {
+            // Separa data e hora
+            let [dataPart, horaPart] = dataFull.split(' ');
+            const [ano, mes, dia] = dataPart.split('-');
+            let formatado = `${dia}/${mes}/${ano}`;
+            if (horaPart) formatado += ` às ${horaPart}`;
+            return formatado;
+        } catch (e) { return dataFull; }
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
 
-        // ===============================================
-        // SCRIPT 1: Salvar campos rápidos (ATUALIZADO)
-        // (Setor foi RE-ADICIONADO)
-        // ===============================================
+        // 1. Salvar campos rápidos
         const inputs = document.querySelectorAll('tbody .form-control');
         inputs.forEach(input => {
             input.addEventListener('change', () => {
                 const row = input.closest('tr');
                 const id = row.dataset.id;
                 const responsavel = row.querySelector('[name="responsavel"]').value;
-                const setor = row.querySelector('[name="setor"]').value; // RE-ADICIONADO
+                const setor = row.querySelector('[name="setor"]').value; 
                 const data_agendamento = row.querySelector('[name="data_agendamento"]').value;
                 const status = row.querySelector('[name="status"]').value;
 
                 row.style.transition = 'background-color 0.5s ease';
-                row.style.backgroundColor = 'rgba(91, 192, 222, 0.2)'; // Azul
+                row.style.backgroundColor = 'rgba(91, 192, 222, 0.2)'; 
                 
                 fetch('/atualizar', {
                     method: 'POST',
@@ -304,167 +301,108 @@
                         numero_solicitacao: id,
                         responsavel: responsavel,
                         status: status,
-                        setor: setor, // RE-ADICIONADO
+                        setor: setor, 
                         data_agendamento: data_agendamento
                     })
                 })
                 .then(response => response.json())
-                .then(data => {
-                    console.log('Sucesso (campos rápidos):', data);
-                    setTimeout(() => row.style.backgroundColor = '', 500); 
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    row.style.backgroundColor = ''; 
-                    alert('Não foi possível salvar os dados.');
-                });
+                .then(data => { setTimeout(() => row.style.backgroundColor = '', 500); })
+                .catch(error => { row.style.backgroundColor = ''; alert('Erro ao salvar.'); });
             });
         });
 
-        
-        // ===============================================
-        // SCRIPT 2: Lógica do MODAL DE DETALHES (ATUALIZADO)
-        // ===============================================
+        // 2. Salvar Anotação (Inline)
+        const anotacaoInputs = document.querySelectorAll('.input-anotacao-tabela');
+        anotacaoInputs.forEach(input => {
+            input.addEventListener('change', () => {
+                const row = input.closest('tr');
+                const id = row.dataset.id;
+                const anotacao = input.value;
+
+                input.style.borderColor = '#f0ad4e'; 
+
+                fetch('/api/atualizar-anotacao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', },
+                    body: JSON.stringify({ numero_solicitacao: id, anotacao: anotacao })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'sucesso') {
+                        input.style.borderColor = '#5cb85c'; 
+                        setTimeout(() => input.style.borderColor = '', 1000);
+                    } else {
+                        alert('Erro ao salvar anotação.');
+                        input.style.borderColor = 'red';
+                    }
+                })
+                .catch(error => { console.error(error); input.style.borderColor = 'red'; });
+            });
+        });
+
+        // 3. Modal de Detalhes (COM DATA DE RECEBIMENTO)
         const detailsModalOverlay = document.getElementById('details-modal-overlay');
         const detailsModalCloseBtn = document.getElementById('modal-close-btn');
-        const detailsButtons = document.querySelectorAll('.details-btn');
-        const modalSaveBtn = document.getElementById('modal-save-anotacao'); // Botão Salvar
-        
-        // Elementos do Modal de Detalhes
-        const modalTitle = document.getElementById('modal-title');
-        const modalPrazoOrig = document.getElementById('modal-prazo-original');
-        const modalRecebido = document.getElementById('modal-recebido-em'); // RE-ADICIONADO
-        const modalPolo = document.getElementById('modal-polo');
-        const modalAnotacao = document.getElementById('modal-anotacao');
-        // const modalSetor = document.getElementById('modal-setor'); // REMOVIDO
         const modalTextoDMI = document.getElementById('modal-texto-dmi');
-        let currentDetailsSolicitacaoId = null;
+        const modalTitle = document.getElementById('modal-title');
+        const modalRecebidoDisplay = document.getElementById('modal-recebido-display'); // Novo elemento
 
-        // Abrir Modal de Detalhes
-        detailsButtons.forEach(button => {
+        document.querySelectorAll('.details-btn').forEach(button => {
             button.addEventListener('click', () => {
                 const row = button.closest('tr');
-                currentDetailsSolicitacaoId = row.dataset.id; 
-
-                // Popula os dados estáticos e de edição
-                modalTitle.textContent = `Detalhes e Anotação: ${currentDetailsSolicitacaoId}`;
-                modalPrazoOrig.textContent = row.dataset.prazoOriginal || 'N/A';
-                modalRecebido.textContent = row.dataset.recebido || 'N/A'; // RE-ADICIONADO
-                modalPolo.textContent = row.dataset.polo || 'N/A';
-                modalAnotacao.value = row.dataset.anotacao || '';
-                // modalSetor.value = row.dataset.setor || 'N/A'; // REMOVIDO
+                
+                modalTitle.textContent = `Solicitação: ${row.dataset.id}`;
+                
+                // Pega a data do atributo data-recebido e formata
+                const dataRecebidoRaw = row.dataset.recebido || '';
+                modalRecebidoDisplay.textContent = formatarDataHora(dataRecebidoRaw);
+                
                 modalTextoDMI.value = row.dataset.textoDmi || 'Nenhum texto DMI encontrado.';
-
                 detailsModalOverlay.classList.add('active');
             });
         });
 
-        // Fechar Modal de Detalhes
-        const closeDetailsModal = () => {
-            detailsModalOverlay.classList.remove('active');
-            currentDetailsSolicitacaoId = null;
-        };
+        const closeDetailsModal = () => { detailsModalOverlay.classList.remove('active'); };
         detailsModalCloseBtn.addEventListener('click', closeDetailsModal);
-        detailsModalOverlay.addEventListener('click', (e) => {
-            if (e.target === detailsModalOverlay) {
-                closeDetailsModal();
-            }
-        });
+        detailsModalOverlay.addEventListener('click', (e) => { if (e.target === detailsModalOverlay) closeDetailsModal(); });
 
-        // Salvar APENAS Anotação (dentro do Modal de Detalhes)
-        modalSaveBtn.addEventListener('click', () => {
-            if (!currentDetailsSolicitacaoId) return;
-
-            const novaAnotacao = modalAnotacao.value;
-            // const novoSetor = modalSetor.value; // REMOVIDO
-
-            modalSaveBtn.disabled = true;
-            modalSaveBtn.textContent = 'Salvando...';
-
-            fetch('/api/atualizar-anotacao', { // ROTA ATUALIZADA
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', },
-                body: JSON.stringify({
-                    numero_solicitacao: currentDetailsSolicitacaoId,
-                    anotacao: novaAnotacao
-                    // 'setor' removido
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'sucesso') {
-                    // Atualiza o data-attribute na linha da tabela
-                    const row = document.querySelector(`tr[data-id="${currentDetailsSolicitacaoId}"]`);
-                    if (row) {
-                        row.dataset.anotacao = novaAnotacao;
-                        // row.dataset.setor = novoSetor; // REMOVIDO
-                    }
-                    alert('Anotação Salva!');
-                    closeDetailsModal();
-                } else {
-                    alert('Erro ao salvar: ' + data.mensagem);
-                }
-            })
-            .catch(error => {
-                console.error('Erro ao salvar modal:', error);
-                alert('Erro de conexão ao salvar.');
-            })
-            .finally(() => {
-                modalSaveBtn.disabled = false;
-                modalSaveBtn.textContent = 'Salvar Anotação';
-            });
-        });
-
-
-        // ===============================================
-        // SCRIPT 3: Lógica do MODAL DE CONFIRMAÇÃO (ATUALIZADO)
-        // ===============================================
-        const apiButtons = document.querySelectorAll('.api-task-btn');
+        // 4. Modal de Confirmação
         const confirmModalOverlay = document.getElementById('confirm-task-modal-overlay');
         const confirmModalCloseBtn = document.getElementById('confirm-modal-close-btn');
         const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
         const confirmSendBtn = document.getElementById('confirm-send-btn');
         let originalApiButton = null; 
-
-        // Elementos do Modal de Confirmação
+        
+        // Campos do modal de confirmação
         const confirmProcesso = document.getElementById('confirm-processo');
         const confirmResponsavel = document.getElementById('confirm-responsavel');
         const confirmPrazoTarefa = document.getElementById('confirm-prazo-tarefa');
-        const confirmVencimentoDMI = document.getElementById('confirm-vencimento-dmi');
         const confirmSetor = document.getElementById('confirm-setor'); 
         const confirmStatus = document.getElementById('confirm-status'); 
         const confirmAnotacao = document.getElementById('confirm-anotacao');
         
-        // Abrir o Modal de Confirmação (ATUALIZADO)
-        apiButtons.forEach(button => {
+        document.querySelectorAll('.api-task-btn').forEach(button => {
             button.addEventListener('click', () => {
-                
                 originalApiButton = button; 
                 const row = button.closest('tr');
                 const numeroSolicitacao = button.dataset.id;
                 
-                // Pega os valores ATUAIS dos campos na linha
                 const responsavel = row.querySelector('[name="responsavel"]').value;
                 const dataAgendamento = row.querySelector('[name="data_agendamento"]').value;
-                const setor = row.querySelector('[name="setor"]').value; // Pega do dropdown
+                const setor = row.querySelector('[name="setor"]').value; 
                 const status = row.querySelector('[name="status"]').value;
                 
-                // --- VALIDAÇÃO (Obrigatório ter data) ---
                 if (!dataAgendamento) {
-                    alert('Erro: O campo "Data p/ agendamento" (prazo) é obrigatório para criar a tarefa.');
+                    alert('Erro: O campo "Prazo Tarefa" é obrigatório.');
                     return; 
                 }
                 
-                // Pega dados estáticos e do modal
-                const anotacao = row.dataset.anotacao; 
-                const numeroProcesso = row.cells[2].textContent.trim(); // Posição da célula 2 (Nº Processo)
-                const prazoOriginal = row.dataset.prazoOriginal;
+                const anotacao = row.querySelector('.input-anotacao-tabela').value; 
+                const numeroProcesso = row.cells[2].textContent.trim(); 
 
-                // Popula o modal de confirmação
                 confirmProcesso.textContent = numeroProcesso || 'N/A';
                 confirmResponsavel.textContent = responsavel;
                 confirmPrazoTarefa.textContent = formatarData(dataAgendamento);
-                confirmVencimentoDMI.textContent = prazoOriginal || 'N/A';
                 confirmSetor.textContent = setor;
                 confirmStatus.textContent = status;
                 confirmAnotacao.textContent = anotacao || '(Sem anotação)';
@@ -474,7 +412,6 @@
             });
         });
         
-        // Fechar o Modal de Confirmação
         const closeConfirmModal = () => {
             confirmModalOverlay.classList.remove('active');
             confirmSendBtn.disabled = false;
@@ -483,22 +420,16 @@
         };
         confirmModalCloseBtn.addEventListener('click', closeConfirmModal);
         confirmCancelBtn.addEventListener('click', closeConfirmModal);
-        confirmModalOverlay.addEventListener('click', (e) => {
-            if (e.target === confirmModalOverlay) {
-                closeConfirmModal();
-            }
-        });
+        confirmModalOverlay.addEventListener('click', (e) => { if (e.target === confirmModalOverlay) closeConfirmModal(); });
 
-        // Enviar a Tarefa (clicando em "Confirmar Envio")
         confirmSendBtn.addEventListener('click', () => {
             const numeroSolicitacao = confirmSendBtn.dataset.id;
             if (!numeroSolicitacao || !originalApiButton) return;
 
             confirmSendBtn.disabled = true;
             confirmSendBtn.textContent = 'Enviando...';
-            
             originalApiButton.disabled = true;
-            originalApiButton.textContent = 'Enviando...';
+            originalApiButton.textContent = '...';
             originalApiButton.classList.add('loading');
 
             fetch('/api/criar-tarefa', {
@@ -510,94 +441,64 @@
             .then(data => {
                 if (data.status === 'sucesso') {
                     alert(`Sucesso: ${data.mensagem}`);
-                    originalApiButton.style.backgroundColor = '#5cb85c'; // Verde
-                    originalApiButton.textContent = 'Enviada!';
+                    originalApiButton.style.backgroundColor = '#5cb85c'; 
+                    originalApiButton.innerHTML = '<i class="bi bi-check-lg"></i>'; 
                     originalApiButton.classList.add('success');
                     originalApiButton.disabled = true; 
                 } else {
                     alert(`Erro ao criar tarefa: ${data.mensagem}`);
                     originalApiButton.disabled = false;
-                    originalApiButton.textContent = 'Criar Tarefa';
+                    originalApiButton.innerHTML = '<i class="bi bi-send"></i>';
                     originalApiButton.classList.remove('loading');
                 }
             })
             .catch(error => {
                 console.error('Erro no fetch:', error);
-                alert('Erro de conexão. Verifique o console.');
+                alert('Erro de conexão.');
                 originalApiButton.disabled = false;
-                originalApiButton.textContent = 'Criar Tarefa';
+                originalApiButton.innerHTML = '<i class="bi bi-send"></i>';
                 originalApiButton.classList.remove('loading');
             })
-            .finally(() => {
-                closeConfirmModal();
-            });
+            .finally(() => { closeConfirmModal(); });
         });
 
-
-        // ===============================================
-        // SCRIPT 4: Gráfico (Sem alteração)
-        // ===============================================
+        // 5. Gráfico
         let recebimentosChart = null; 
-
         function renderizarGrafico() {
             const dataInicio = document.getElementById('data-inicio-grafico').value;
             const dataFim = document.getElementById('data-fim-grafico').value;
-            const apiUrl = `/api/recebimentos?inicio=${dataInicio}&fim=${dataFim}`;
-
-            fetch(apiUrl)
+            fetch(`/api/recebimentos?inicio=${dataInicio}&fim=${dataFim}`)
                 .then(response => response.json())
                 .then(apiData => {
                     const ctx = document.getElementById('recebimentosChart').getContext('2d');
                     document.getElementById('total-recebimentos').innerText = `Total: ${apiData.total}`;
-
-                    if (recebimentosChart) {
-                        recebimentosChart.destroy();
-                    }
-
+                    if (recebimentosChart) recebimentosChart.destroy();
                     recebimentosChart = new Chart(ctx, {
                         type: 'bar',
                         data: {
                             labels: apiData.labels,
                             datasets: [{
-                                label: 'Solicitações Recebidas',
+                                label: 'Recebidos',
                                 data: apiData.data,
                                 backgroundColor: 'rgba(91, 192, 222, 0.6)',
                                 borderColor: 'rgba(91, 192, 222, 1)',
-                                borderWidth: 1,
-                                borderRadius: 5
+                                borderWidth: 1, borderRadius: 5
                             }]
                         },
                         options: {
                             scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: { color: '#e0e0e0' },
-                                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                                },
-                                x: {
-                                    ticks: { color: '#e0e0e0' },
-                                    grid: { color: 'rgba(255, 255, 255, 0.1)' }
-                                }
+                                y: { beginAtZero: true, ticks: { color: '#e0e0e0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                                x: { ticks: { color: '#e0e0e0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
                             },
-                            plugins: {
-                                legend: {
-                                    display: false
-                                }
-                            },
+                            plugins: { legend: { display: false } },
                             maintainAspectRatio: false
                         }
                     });
-                })
-                .catch(error => console.error('Erro ao buscar dados do gráfico:', error));
+                });
         }
-
         renderizarGrafico();
-        document.getElementById('data-inicio-grafico').addEventListener('change', () => {
-             document.getElementById('filter-form').submit();
-        });
-         document.getElementById('data-fim-grafico').addEventListener('change', () => {
-             document.getElementById('filter-form').submit();
-        });
+        document.getElementById('data-inicio-grafico').addEventListener('change', () => { document.getElementById('filter-form').submit(); });
+        document.getElementById('data-fim-grafico').addEventListener('change', () => { document.getElementById('filter-form').submit(); });
     });
 </script>
 {% endblock %}
