@@ -73,7 +73,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    # ROTA index() (Sem alterações)
+    # ROTA index() ATUALIZADA COM KPI DE FIM DE SEMANA
     filters = {
         'responsavel': request.args.get('responsavel', ''),
         'busca': request.args.get('busca', ''),
@@ -92,10 +92,13 @@ def index():
         params.extend([f"%{filters['busca']}%", f"%{filters['busca']}%", f"%{filters['busca']}%"])
     solicitacoes_raw = conn_solicitacoes.execute(query, params).fetchall()
     conn_solicitacoes.close()
-    kpis = {'vencidas': 0, 'hoje': 0, 'amanha': 0, 'futuras': 0}
+    
+    # Adicionamos 'fds': 0 na inicialização
+    kpis = {'vencidas': 0, 'hoje': 0, 'amanha': 0, 'futuras': 0, 'fds': 0}
     today = datetime.now().date()
     tomorrow = today + timedelta(days=1)
     solicitacoes_processadas = []
+    
     for item_raw in solicitacoes_raw:
         item = dict(item_raw)
         
@@ -105,16 +108,33 @@ def index():
         except (ValueError, TypeError):
             pass 
 
-        item['farol_status'] = 'cinza'
         try:
             prazo_date = datetime.strptime(item['prazo'], '%d/%m/%Y').date()
             item['prazo_date'] = prazo_date
-            if prazo_date < today: kpis['vencidas'] += 1; item['farol_status'] = 'vermelho'
-            elif prazo_date == today: kpis['hoje'] += 1; item['farol_status'] = 'amarelo'
-            elif prazo_date == tomorrow: kpis['amanha'] += 1; item['farol_status'] = 'verde'
-            else: kpis['futuras'] += 1; item['farol_status'] = 'verde'
+            dia_semana = prazo_date.weekday() # 0=Seg ... 5=Sáb, 6=Dom
+
+            if prazo_date < today: 
+                kpis['vencidas'] += 1
+                item['farol_status'] = 'cinza'
+            elif prazo_date == today: 
+                kpis['hoje'] += 1
+                item['farol_status'] = 'vermelho'
+            elif prazo_date == tomorrow: 
+                kpis['amanha'] += 1
+                item['farol_status'] = 'amarelo'
+            else: 
+                # Lógica dividida: FDS vs Futuras (dias úteis)
+                if dia_semana == 5 or dia_semana == 6:
+                    kpis['fds'] += 1          # Conta como Fim de Semana
+                    item['farol_status'] = 'roxo'
+                else:
+                    kpis['futuras'] += 1      # Conta como Futura normal
+                    item['farol_status'] = 'verde'
+                    
         except (ValueError, TypeError):
             item['prazo_date'] = datetime.max.date()
+            item['farol_status'] = 'cinza'
+            
         solicitacoes_processadas.append(item)
     
     solicitacoes = sorted(solicitacoes_processadas, key=lambda x: x['prazo_date'])

@@ -8,10 +8,12 @@
     --accent-color: #5bc0de;
     --accent-color-dark: #31b0d5;
     
-    --kpi-vencidas: #d9534f;
-    --kpi-hoje: #f0ad4e;
-    --kpi-amanha: #5cb85c;
-    --kpi-futuras: #5bc0de;
+    /* NOVAS CORES DEFINIDAS */
+    --kpi-vencidas: #6c757d; 
+    --kpi-hoje: #d9534f;     
+    --kpi-amanha: #f0ad4e;   
+    --kpi-futuras: #5cb85c;  
+    --kpi-fds: #a370f7;      
 }
 
 body {
@@ -119,6 +121,8 @@ body {
     border-radius: 8px;
     border-left: 5px solid;
 }
+
+.kpi-card.fds { border-color: var(--kpi-fds); color: var(--kpi-fds); }
 
 .kpi-card h3 {
     margin-top: 0;
@@ -328,10 +332,11 @@ body {
     height: 15px;
     border-radius: 50%;
 }
-.farol-vermelho { background-color: var(--kpi-vencidas); }
-.farol-amarelo { background-color: var(--kpi-hoje); }
-.farol-verde { background-color: var(--kpi-amanha); }
-.farol-cinza { background-color: #666; }
+.farol-cinza { background-color: var(--kpi-vencidas); }   
+.farol-vermelho { background-color: var(--kpi-hoje); }   
+.farol-amarelo { background-color: var(--kpi-amanha); }   
+.farol-verde { background-color: var(--kpi-futuras); }    
+.farol-roxo { background-color: var(--kpi-fds); }
 
 /* Status "Não Encontrado" */
 .status-info {
