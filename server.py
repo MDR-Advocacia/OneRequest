@@ -285,34 +285,34 @@ def api_recebimentos():
 @app.route('/atualizar', methods=['POST'])
 @login_required
 def atualizar():
-    # Salva apenas os campos rápidos da tabela
+    # Salva todos os campos rápidos da tabela
     dados = request.json
     database.atualizar_campos_edicao(
         dados.get('numero_solicitacao'), 
         dados.get('responsavel'), 
         dados.get('status'),
+        dados.get('setor'), # RE-ADICIONADO
         dados.get('data_agendamento')
-        # 'setor' e 'anotacao' foram removidos
     )
     return jsonify({'status': 'sucesso'})
 
-# --- ROTA ATUALIZADA (Salva Anotação E Setor do Modal) ---
-@app.route('/api/atualizar-modal', methods=['POST'])
+# --- ROTA ATUALIZADA (Salva APENAS Anotação do Modal) ---
+@app.route('/api/atualizar-anotacao', methods=['POST'])
 @login_required
-def api_atualizar_modal():
+def api_atualizar_anotacao():
     dados = request.json
     num_solicitacao = dados.get('numero_solicitacao')
     anotacao = dados.get('anotacao')
-    setor = dados.get('setor') # Adicionado
+    # Setor foi removido daqui
     
     if not num_solicitacao:
         return jsonify({'status': 'erro', 'mensagem': 'ID da solicitação não fornecido.'}), 400
 
     try:
-        database.atualizar_modal(num_solicitacao, anotacao, setor) # Função atualizada
+        database.atualizar_anotacao(num_solicitacao, anotacao) # Função atualizada
         return jsonify({'status': 'sucesso'})
     except Exception as e:
-        print(f"Erro ao salvar modal: {e}")
+        print(f"Erro ao salvar anotação: {e}")
         return jsonify({'status': 'erro', 'mensagem': str(e)}), 500
 # --- FIM DA ROTA ATUALIZADA ---
 
@@ -438,9 +438,11 @@ def api_criar_tarefa():
         # --- CORREÇÃO: ACEITAR 202 COMO SUCESSO ---
         if response.status_code in [200, 201, 202]:
             msg_sucesso = "Tarefa criada com sucesso!"
-            if response.status_code == 202:
-                # Pega a mensagem da API (ex: "A solicitação... foi recebida")
-                msg_sucesso = response.json().get('message', 'Solicitação recebida! A tarefa está sendo processada.')
+            try:
+                # Tenta pegar a mensagem real da API (ex: "Solicitação recebida...")
+                msg_sucesso = response.json().get('message', msg_sucesso)
+            except requests.exceptions.JSONDecodeError:
+                pass # Se a resposta 202 não tiver JSON, usa a mensagem padrão
                 
             return jsonify({'status': 'sucesso', 'mensagem': msg_sucesso})
         else:

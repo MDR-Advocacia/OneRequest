@@ -221,30 +221,30 @@ def obter_usuarios_legal_one():
     except sqlite3.OperationalError:
         return []
 
-# --- FUNÇÃO ATUALIZADA (anotação E setor removidos) ---
-def atualizar_campos_edicao(num_solicitacao, responsavel, status, data_agendamento):
+# --- FUNÇÃO ATUALIZADA (Salva todos os campos da linha) ---
+def atualizar_campos_edicao(num_solicitacao, responsavel, status, setor, data_agendamento):
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute("""
-    UPDATE solicitacoes SET responsavel = ?, status = ?, data_agendamento = ?
+    UPDATE solicitacoes SET responsavel = ?, status = ?, setor = ?, data_agendamento = ?
     WHERE numero_solicitacao = ?;
-    """, (responsavel, status, data_agendamento, num_solicitacao))
+    """, (responsavel, status, setor, data_agendamento, num_solicitacao))
     conn.commit()
     conn.close()
 # --- FIM DA FUNÇÃO ---
 
-# --- FUNÇÃO ATUALIZADA (agora salva anotação E setor) ---
-def atualizar_modal(num_solicitacao, anotacao, setor):
-    """Atualiza os campos de anotação e setor (do modal)."""
+# --- FUNÇÃO ATUALIZADA (Salva apenas anotação) ---
+def atualizar_anotacao(num_solicitacao, anotacao):
+    """Atualiza apenas o campo de anotação."""
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
     cursor.execute(
-        "UPDATE solicitacoes SET anotacao = ?, setor = ? WHERE numero_solicitacao = ?;",
-        (anotacao, setor, num_solicitacao)
+        "UPDATE solicitacoes SET anotacao = ? WHERE numero_solicitacao = ?;",
+        (anotacao, num_solicitacao)
     )
     conn.commit()
     conn.close()
-# --- FIM DA NOVA FUNÇÃO ---
+# --- FIM DA FUNÇÃO ---
 
 
 def marcar_como_abertas(numeros_solicitacao):
