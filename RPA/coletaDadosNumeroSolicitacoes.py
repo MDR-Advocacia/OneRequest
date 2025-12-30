@@ -68,23 +68,51 @@ def clicar_pesquisar(frame):
 def alterar_registros_por_pagina(frame):
     """
     Função para clicar no botão '50' e aguardar o carregamento da página.
+    
     """
-    print("\n🔢 Clicando no botão '50' para exibir mais registros...")
+    print("\n🔢 Verificando paginação...")
 
     try:
         seletor_50 = 'a.dr-dscr-button:has-text("50")'
 
+        # 1. Verifica se o botão '50' está visível. Se não estiver (ex: só tem 5 registros), segue o fluxo.
+        if not frame.locator(seletor_50).is_visible():
+            print("⚠️ Botão '50' não encontrado ou não necessário (poucos registros). Mantendo paginação atual.")
+            return True
+
+        # Captura o texto atual antes de clicar para garantir que mudou depois (opcional, mas robusto)
+        seletor_info = "div.dataTableNumeroRegistros"
+        try:
+            texto_inicial = frame.locator(seletor_info).first.inner_text()
+        except:
+            texto_inicial = ""
+
+        print("🖱️  Clicando no botão '50' para expandir registros...")
         frame.click(seletor_50, timeout=10000)
-        print("✅ Botão '50' clicado com sucesso!")
+        
+        print("[⏳] Aguardando atualização da tabela...")
 
-        print("[⏳] Aguardando a página recarregar com 50 registros...")
-        seletor_status_registros = 'div.dataTableNumeroRegistros:has-text("1-50")'
-        frame.wait_for_selector(seletor_status_registros, timeout=30000)
-        print("✅ Registros por página alterados para 50.")
+        # 2. Espera genérica: aguarda o elemento de contagem estar visível novamente
+        # Não usamos has-text("1-50") pois pode ser "1-30", "1-12", etc.
+        frame.wait_for_selector(seletor_info, state="visible", timeout=30000)
 
+        # 3. Validação extra: Aguarda o texto começar com "1-" (ex: 1-50, 1-30)
+        # Isso confirma que a tabela foi carregada, independente da quantidade total.
+        # O loop abaixo garante que não pegamos o texto antigo por azar.
+        for _ in range(20): # Tenta por até 10 segundos (20 * 0.5s)
+            texto_atual = frame.locator(seletor_info).first.inner_text().strip()
+            if texto_atual != texto_inicial and texto_atual.startswith("1-"):
+                print(f"✅ Paginação atualizada com sucesso. Exibindo: {texto_atual}")
+                return True
+            time.sleep(0.5)
+        
+        print(f"⚠️ Aviso: O texto da paginação não mudou ({texto_inicial}), mas o elemento está visível. Prosseguindo.")
         return True
+
     except Exception as e:
-        print(f"[❌] Falha ao clicar no botão '50' ou a página não recarregou: {e}")
+        print(f"[❌] Falha não bloqueante ao alterar paginação: {e}")
+        # Retornamos True ou False dependendo se você quer que o robô pare. 
+        # Geralmente, falha na paginação não deve parar o robô se ele ainda conseguir ler a página 1.
         return False
 
 def encontrar_botao_proxima_pagina(frame):
