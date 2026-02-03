@@ -17,14 +17,15 @@ class Navegador:
         self.page = None
 
     def iniciar(self):
-        """Abre o navegador Chrome com a porta de depuração."""
-        print(f"▶️  Executando o script: {BAT_FILE_PATH}")
-        self.browser_process = subprocess.Popen(
-            str(BAT_FILE_PATH), 
-            shell=True, 
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-        )
-        print("    Aguardando o navegador iniciar...")
+        """Conecta ao navegador Chrome já aberto."""
+        # Comentado para não abrir nova janela, pois usaremos a já aberta (Attended Automation)
+        # print(f"▶️  Executando o script: {BAT_FILE_PATH}")
+        # self.browser_process = subprocess.Popen(
+        #     str(BAT_FILE_PATH), 
+        #     shell=True, 
+        #     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+        # )
+        print("    Aguardando conexão com o navegador já aberto...")
         
         self.p = sync_playwright().start()
         for attempt in range(15):
@@ -42,8 +43,7 @@ class Navegador:
     def fechar(self):
         """
         Fecha o browser, o processo do navegador e a instância do Playwright.
-        Esta versão localiza e mata o processo pela porta de depuração (9222),
-        pois o PID original (do .bat) não é mais válido.
+        Esta versão localiza e mata o processo pela porta de depuração (9222).
         """
         print("\n... Iniciando rotina de fechamento do navegador ...")
 
@@ -63,11 +63,10 @@ class Navegador:
             except Exception as e:
                 print(f"     Aviso: Erro ao parar 'p': {e}")
         
-        # 3. MATA O PROCESSO DO CHROME PELA PORTA 9222 (A Solução)
+        # 3. MATA O PROCESSO DO CHROME PELA PORTA 9222
         print("     Procurando e finalizando o processo do Chrome na porta 9222...")
         try:
             if sys.platform == "win32":
-                # Comando para encontrar o PID que está usando a porta 9222
                 cmd_find_pid = "netstat -ano -p TCP | findstr :9222"
                 result = subprocess.run(cmd_find_pid, shell=True, capture_output=True, text=True, check=False)
                 output = result.stdout.strip()
@@ -76,21 +75,18 @@ class Navegador:
                     print("     Nenhum processo encontrado na porta 9222. O navegador pode já estar fechado.")
                     return
 
-                # Tenta extrair o PID (é o último número na linha)
                 pid_match = re.search(r'(\d+)$', output.splitlines()[0])
                 
                 if pid_match:
                     pid = pid_match.group(1)
                     print(f"     Encontrado processo (PID: {pid}) na porta 9222. Finalizando...")
-                    # Comando para matar o PID encontrado
                     subprocess.run(f"TASKKILL /F /PID {pid} /T", shell=True, check=False, capture_output=True)
                     print(f"🏁 Processo {pid} (Chrome) finalizado.")
                 else:
                     print(f"     Não foi possível extrair o PID da saída do netstat: {output}")
             else:
-                # Lógica para Linux/Mac (caso use no futuro)
                 subprocess.run("lsof -t -i:9222 | xargs kill -9", shell=True, check=False, capture_output=True)
-                print("     Comando de finalização (Linux/Mac) executado.")
+                print("     Comando de finalização executado.")
 
         except Exception as e_kill:
             print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")

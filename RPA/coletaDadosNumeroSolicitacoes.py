@@ -8,17 +8,13 @@ import sys
 import os
 import re
 
-
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from bd import database
 
-
-
-# --- CONFIGURAÇÕES OBRIGATÓRIAS ---
-EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
-BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
+# --- CONFIGURAÇÕES ---
+# BAT_FILE_PATH não é mais usado para abrir, pois faremos isso manualmente
 CDP_ENDPOINT = "http://localhost:9222"
 
 def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
@@ -68,7 +64,6 @@ def clicar_pesquisar(frame):
 def alterar_registros_por_pagina(frame):
     """
     Função para clicar no botão '50' e aguardar o carregamento da página.
-    
     """
     print("\n🔢 Verificando paginação...")
 
@@ -80,7 +75,7 @@ def alterar_registros_por_pagina(frame):
             print("⚠️ Botão '50' não encontrado ou não necessário (poucos registros). Mantendo paginação atual.")
             return True
 
-        # Captura o texto atual antes de clicar para garantir que mudou depois (opcional, mas robusto)
+        # Captura o texto atual antes de clicar para garantir que mudou depois
         seletor_info = "div.dataTableNumeroRegistros"
         try:
             texto_inicial = frame.locator(seletor_info).first.inner_text()
@@ -92,14 +87,11 @@ def alterar_registros_por_pagina(frame):
         
         print("[⏳] Aguardando atualização da tabela...")
 
-        # 2. Espera genérica: aguarda o elemento de contagem estar visível novamente
-        # Não usamos has-text("1-50") pois pode ser "1-30", "1-12", etc.
+        # 2. Espera genérica
         frame.wait_for_selector(seletor_info, state="visible", timeout=30000)
 
-        # 3. Validação extra: Aguarda o texto começar com "1-" (ex: 1-50, 1-30)
-        # Isso confirma que a tabela foi carregada, independente da quantidade total.
-        # O loop abaixo garante que não pegamos o texto antigo por azar.
-        for _ in range(20): # Tenta por até 10 segundos (20 * 0.5s)
+        # 3. Validação extra
+        for _ in range(20): 
             texto_atual = frame.locator(seletor_info).first.inner_text().strip()
             if texto_atual != texto_inicial and texto_atual.startswith("1-"):
                 print(f"✅ Paginação atualizada com sucesso. Exibindo: {texto_atual}")
@@ -111,8 +103,6 @@ def alterar_registros_por_pagina(frame):
 
     except Exception as e:
         print(f"[❌] Falha não bloqueante ao alterar paginação: {e}")
-        # Retornamos True ou False dependendo se você quer que o robô pare. 
-        # Geralmente, falha na paginação não deve parar o robô se ele ainda conseguir ler a página 1.
         return False
 
 def encontrar_botao_proxima_pagina(frame):
@@ -125,7 +115,6 @@ def encontrar_botao_proxima_pagina(frame):
             return botao_proximo
     except Exception:
         pass
-    
     return None
 
 def extrair_todos_numeros_solicitacoes(frame):
@@ -192,66 +181,41 @@ def extrair_todos_numeros_solicitacoes(frame):
 
 def main():
     """
-    Função principal que orquestra a coleta de números e a sincronização de status.
+    Função principal adaptada para Automação Assistida (sem login, sem fechar browser).
     """
     database.inicializar_banco()
 
-    browser_process = None
+    # --- 1. NÃO abre o Chrome via código ---
+    print("⚠️ MODO ASSISTIDO: Certifique-se de que o Chrome já está aberto na porta 9222 e logado.")
+
     try:
-        print(f"▶️  Executando o script: {BAT_FILE_PATH}")
-        browser_process = subprocess.Popen(
-            str(BAT_FILE_PATH), 
-            shell=True, 
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-        )
-        print("    Aguardando o navegador iniciar...")
-        
         with sync_playwright() as p:
             browser = None
-            for attempt in range(15):
+            # --- 2. Conecta ao Chrome existente ---
+            for attempt in range(5):
                 try:
-                    time.sleep(2)
                     print(f"    Tentativa de conexão nº {attempt + 1}...")
                     browser = p.chromium.connect_over_cdp(CDP_ENDPOINT)
                     print("✅ Conectado com sucesso ao navegador!")
                     break 
                 except Exception:
-                    continue
+                    time.sleep(2)
             
             if not browser:
-                raise ConnectionError("Não foi possível conectar ao navegador.")
+                raise ConnectionError("Não foi possível conectar. Rode o 'abrir_chrome.bat' antes!")
 
             context = browser.contexts[0]
             
-            print(f"🚀 Navegando diretamente para a URL da extensão...")
-            extension_page = context.pages[0] if context.pages else context.new_page()
-            extension_page.goto(EXTENSION_URL)
-            extension_page.wait_for_load_state("domcontentloaded")
-            print("    - Localizando o campo de busca na extensão...")
-            search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
-            search_input.wait_for(state="visible", timeout=5000)
-            print("    - Pesquisando por 'banco do'...")
-            search_input.fill("banco do")
-            with context.expect_event('page') as new_page_info:
-                print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-                login_button = extension_page.locator('div[role="menuitem"]:not([disabled])', has_text="Banco do Brasil - Intranet").first
-                login_button.click(timeout=10000)
-                print("    - Clicando no botão de confirmação 'ACESSAR'...")
-                extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-            portal_page = new_page_info.value
-            extension_page.close()
-            print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
-            time.sleep(5)
-            print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
-            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
-            print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
-            print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
-            print("▶️  Iniciando a limpeza seletiva de cookies...")
-            context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-            context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-            print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
+            # --- 3. Pula Login e Pega a Aba Atual ---
+            if not context.pages:
+                print("❌ Nenhuma aba encontrada. Abra o Portal Jurídico no Chrome.")
+                return
 
+            # Assume que a primeira aba é a que vamos usar
+            portal_page = context.pages[0]
+            print(f"✅ Usando a página já aberta: {portal_page.title()}")
+            
+            # --- 4. Continua o fluxo normal de navegação (sem login) ---
             tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
             
             if tarefa_frame:
@@ -291,42 +255,9 @@ def main():
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
     finally:
-        # --- BLOCO FINALLY CORRIGIDO ---
-        # Este bloco agora executa a mesma lógica do nav.fechar()
-        print("\n... Iniciando rotina de fechamento do navegador ...")
-
-        # O 'with sync_playwright()' já cuida de fechar a conexão do Playwright.
-        # Nós só precisamos matar o processo do Chrome pela porta 9222.
-        
-        print("     Procurando e finalizando o processo do Chrome na porta 9222...")
-        try:
-            if sys.platform == "win32":
-                cmd_find_pid = "netstat -ano -p TCP | findstr :9222"
-                result = subprocess.run(cmd_find_pid, shell=True, capture_output=True, text=True, check=False)
-                output = result.stdout.strip()
-
-                if not output:
-                    print("     Nenhum processo encontrado na porta 9222.")
-                else:
-                    pid_match = re.search(r'(\d+)$', output.splitlines()[0])
-                    
-                    if pid_match:
-                        pid = pid_match.group(1)
-                        print(f"     Encontrado processo (PID: {pid}) na porta 9222. Finalizando...")
-                        subprocess.run(f"TASKKILL /F /PID {pid} /T", shell=True, check=False, capture_output=True)
-                        print(f"🏁 Processo {pid} (Chrome) finalizado.")
-                    else:
-                        print(f"     Não foi possível extrair o PID da saída do netstat: {output}")
-            else:
-                # Lógica para Linux/Mac
-                subprocess.run("lsof -t -i:9222 | xargs kill -9", shell=True, check=False, capture_output=True)
-                print("     Comando de finalização (Linux/Mac) executado.")
-
-        except Exception as e_kill:
-            print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
-
-        print("--- Rotina de fechamento concluída. Fim da execução. ---")
-
+        # --- 5. NÃO mata o Chrome ---
+        print("\n🏁 Script finalizado. O Chrome continua aberto para o próximo robô.")
+        # Removido todo o bloco de TASKKILL para não fechar o navegador.
 
 if __name__ == "__main__":
     main()

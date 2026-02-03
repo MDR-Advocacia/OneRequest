@@ -20,13 +20,23 @@ def run():
         return
     print(f"📂 {len(solicitacoes_pendentes)} solicitações pendentes para processar.")
 
-    # 3. Inicia o navegador
+# 3. Inicia o navegador (vai apenas conectar agora)
     nav = Navegador()
     try:
         nav.iniciar()
         
-        # 4. Faz o login
-        portal_page = portal_bb.fazer_login(nav.context)
+        # --- ALTERAÇÃO AQUI ---
+        # 4. Pula o login automático e pega a página atual
+        # portal_page = portal_bb.fazer_login(nav.context) <-- COMENTE ISSO
+        
+        if not nav.context.pages:
+            print("❌ Nenhuma aba aberta encontrada no navegador.")
+            return
+
+        # Assume que a primeira aba é a do portal (ou a que você estiver focada)
+        portal_page = nav.context.pages[0] 
+        print("✅ Usando a página já aberta pelo usuário.")
+        # ----------------------
 
         # 5. Processa cada solicitação pendente
         total = len(solicitacoes_pendentes)
