@@ -1,332 +1,150 @@
 import time
-import subprocess
-from pathlib import Path
-from playwright.sync_api import sync_playwright, Page, Frame
-import json
-import random
 import sys
 import os
-import re
-
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from bd import database
 
-
-
-# --- CONFIGURAÇÕES OBRIGATÓRIAS ---
-EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
-BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
-CDP_ENDPOINT = "http://localhost:9222"
-
-def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
-    """
-    Navega para a seção de assessoria e encontra o frame que contém o botão de pesquisa.
-    """
-    print("[🔁] Acessando seção 'Assessoria - Visão Advogado'...")
-    page.goto(
-        "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar",
-        timeout=90000,
-        wait_until="domcontentloaded"
-    )
-
-    print("    - Procurando pelo frame que contém o botão de pesquisa...")
-    for frame in page.frames:
-        try:
-            if "btPesquisar" in frame.content():
-                print(f"[✅] Frame encontrado: {frame.name or '[sem nome]'}")
-                return frame
-        except Exception:
-            continue
-    print("[❌] Frame com botão 'Pesquisar' não localizado.")
-    return None
-
-def clicar_pesquisar(frame):
-    """
-    Localiza e clica no botão 'Pesquisar' dentro do frame de forma robusta.
-    """
-    print("[🔍] Clicando no botão 'Pesquisar'...")
-    try:
-        seletor_botao = "input[type='image'][name='pesquisarPendenciaTarefaForm:btPTarefa']"
-
-        print("    - Aguardando o botão de pesquisa...")
-        frame.wait_for_selector(seletor_botao, timeout=20000)
-
-        frame.click(seletor_botao)
-
-        print("[⏳] Aguardando carregamento dos registros...")
-        frame.wait_for_selector("div.dataTableNumeroRegistros", timeout=20000)
-
-        print("[✅] Registros carregados com sucesso.")
+def entrar_no_frame_principal(driver):
+    driver.switch_to.default_content()
+    # Tenta achar direto
+    if len(driver.find_elements(By.NAME, "pesquisarPendenciaTarefaForm:btPTarefa")) > 0:
         return True
-    except Exception as e:
-        print(f"[❌] Falha ao clicar no botão 'Pesquisar': {e}")
-        return False
-
-def alterar_registros_por_pagina(frame):
-    """
-    Função para clicar no botão '50' e aguardar o carregamento da página.
-    
-    """
-    print("\n🔢 Verificando paginação...")
-
-    try:
-        seletor_50 = 'a.dr-dscr-button:has-text("50")'
-
-        # 1. Verifica se o botão '50' está visível. Se não estiver (ex: só tem 5 registros), segue o fluxo.
-        if not frame.locator(seletor_50).is_visible():
-            print("⚠️ Botão '50' não encontrado ou não necessário (poucos registros). Mantendo paginação atual.")
-            return True
-
-        # Captura o texto atual antes de clicar para garantir que mudou depois (opcional, mas robusto)
-        seletor_info = "div.dataTableNumeroRegistros"
+    # Busca frames
+    frames = driver.find_elements(By.TAG_NAME, "iframe") + driver.find_elements(By.TAG_NAME, "frame")
+    for frame in frames:
         try:
-            texto_inicial = frame.locator(seletor_info).first.inner_text()
-        except:
-            texto_inicial = ""
+            driver.switch_to.frame(frame)
+            if len(driver.find_elements(By.NAME, "pesquisarPendenciaTarefaForm:btPTarefa")) > 0:
+                return True 
+            driver.switch_to.default_content()
+        except: driver.switch_to.default_content()
+    return False
 
-        print("🖱️  Clicando no botão '50' para expandir registros...")
-        frame.click(seletor_50, timeout=10000)
-        
-        print("[⏳] Aguardando atualização da tabela...")
-
-        # 2. Espera genérica: aguarda o elemento de contagem estar visível novamente
-        # Não usamos has-text("1-50") pois pode ser "1-30", "1-12", etc.
-        frame.wait_for_selector(seletor_info, state="visible", timeout=30000)
-
-        # 3. Validação extra: Aguarda o texto começar com "1-" (ex: 1-50, 1-30)
-        # Isso confirma que a tabela foi carregada, independente da quantidade total.
-        # O loop abaixo garante que não pegamos o texto antigo por azar.
-        for _ in range(20): # Tenta por até 10 segundos (20 * 0.5s)
-            texto_atual = frame.locator(seletor_info).first.inner_text().strip()
-            if texto_atual != texto_inicial and texto_atual.startswith("1-"):
-                print(f"✅ Paginação atualizada com sucesso. Exibindo: {texto_atual}")
-                return True
-            time.sleep(0.5)
-        
-        print(f"⚠️ Aviso: O texto da paginação não mudou ({texto_inicial}), mas o elemento está visível. Prosseguindo.")
-        return True
-
-    except Exception as e:
-        print(f"[❌] Falha não bloqueante ao alterar paginação: {e}")
-        # Retornamos True ou False dependendo se você quer que o robô pare. 
-        # Geralmente, falha na paginação não deve parar o robô se ele ainda conseguir ler a página 1.
-        return False
-
-def encontrar_botao_proxima_pagina(frame):
-    """
-    Localiza o botão de próxima página (seta para a direita).
-    """
+def extrair_numeros_da_pagina(driver):
+    numeros = []
     try:
-        botao_proximo = frame.locator('a.mi--chevron-right')
-        if botao_proximo.is_visible() and botao_proximo.is_enabled():
-            return botao_proximo
-    except Exception:
-        pass
-    
-    return None
-
-def extrair_todos_numeros_solicitacoes(frame):
-    """
-    Extrai todos os números de solicitação de todas as páginas da tabela.
-    """
-    print("\n📋 Extraindo números das solicitações da tabela...")
-    todos_numeros = set()
-    pagina_atual = 1
-    
-    while True:
-        print(f"[📄] Lendo página {pagina_atual}...")
-        
-        linhas = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').all()
-        
-        if not linhas:
-            print("[⚠️] Nenhuma linha encontrada. Fim da extração.")
-            break
-            
+        linhas = driver.find_elements(By.XPATH, "//tbody[contains(@id, 'dataTable:tb')]//tr")
         for linha in linhas:
             try:
-                celula_numero = linha.locator('td').first
-                link_numero = celula_numero.locator('a').first
-                numero = link_numero.inner_text().strip()
-                
-                if numero:
-                    todos_numeros.add(numero)
-                    
-            except Exception as e:
-                print(f"[❌] Erro ao extrair dados da linha: {e}")
-                continue
-        
-        botao_proximo = encontrar_botao_proxima_pagina(frame)
-        if botao_proximo and botao_proximo.is_visible() and botao_proximo.is_enabled():
-            print(f"[➡️] Passando para a próxima página...")
-            try:
-                primeiro_registro_ref = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
-                
-                botao_proximo.click()
+                texto = linha.text
+                if "/" in texto:
+                    import re
+                    match = re.search(r'\d{4}/\d+', texto)
+                    if match: numeros.append(match.group(0))
+            except: continue
+    except: pass
+    return numeros
 
-                for _ in range(60): 
-                    time.sleep(0.5)
-                    try:
-                        novo_primeiro_registro = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
-                        if novo_primeiro_registro != primeiro_registro_ref:
-                            print("✅ Nova página carregada com sucesso!")
-                            break
-                    except:
-                        continue
-                else:
-                    print("[❌] A página não foi carregada com novos dados. Interrompendo a extração.")
-                    break
+def obter_contador_registros(driver):
+    try: return driver.find_element(By.CSS_SELECTOR, "div.dataTableNumeroRegistros").text.strip()
+    except: return ""
 
-                pagina_atual += 1
-            except Exception as e:
-                print(f"[❌] Erro ao avançar para a próxima página: {e}")
-                break
-        else:
-            print("[⏹️] Fim da paginação. Todos os números extraídos.")
-            break
-            
-    print(f"✅ Extração concluída. {len(todos_numeros)} solicitações ativas encontradas no portal.")
-    return list(todos_numeros)
+def sincronizar_solicitacoes(driver):
+    wait = WebDriverWait(driver, 30)
 
-def main():
-    """
-    Função principal que orquestra a coleta de números e a sincronização de status.
-    """
-    database.inicializar_banco()
-
-    browser_process = None
+    print("🏠 Home acessada (pré-aquecimento)...")
+    # Home já foi acessada no login, apenas reforça
+    
+    print("🔁 Acessando Lista de Tarefas...")
+    url_lista = "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar"
+    
+    # --- PROTEÇÃO CONTRA TIMEOUT ---
     try:
-        print(f"▶️  Executando o script: {BAT_FILE_PATH}")
-        browser_process = subprocess.Popen(
-            str(BAT_FILE_PATH), 
-            shell=True, 
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-        )
-        print("    Aguardando o navegador iniciar...")
-        
-        with sync_playwright() as p:
-            browser = None
-            for attempt in range(15):
-                try:
-                    time.sleep(2)
-                    print(f"    Tentativa de conexão nº {attempt + 1}...")
-                    browser = p.chromium.connect_over_cdp(CDP_ENDPOINT)
-                    print("✅ Conectado com sucesso ao navegador!")
-                    break 
-                except Exception:
-                    continue
-            
-            if not browser:
-                raise ConnectionError("Não foi possível conectar ao navegador.")
-
-            context = browser.contexts[0]
-            
-            print(f"🚀 Navegando diretamente para a URL da extensão...")
-            extension_page = context.pages[0] if context.pages else context.new_page()
-            extension_page.goto(EXTENSION_URL)
-            extension_page.wait_for_load_state("domcontentloaded")
-            print("    - Localizando o campo de busca na extensão...")
-            search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
-            search_input.wait_for(state="visible", timeout=5000)
-            print("    - Pesquisando por 'banco do'...")
-            search_input.fill("banco do")
-            with context.expect_event('page') as new_page_info:
-                print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-                login_button = extension_page.locator('div[role="menuitem"]:not([disabled])', has_text="Banco do Brasil - Intranet").first
-                login_button.click(timeout=10000)
-                print("    - Clicando no botão de confirmação 'ACESSAR'...")
-                extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-            portal_page = new_page_info.value
-            extension_page.close()
-            print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
-            time.sleep(5)
-            print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
-            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
-            print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
-            print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
-            print("▶️  Iniciando a limpeza seletiva de cookies...")
-            context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-            context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-            print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
-
-            tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
-            
-            if tarefa_frame:
-                if clicar_pesquisar(tarefa_frame):
-                    
-                    if alterar_registros_por_pagina(tarefa_frame):
-                        
-                        numeros_atuais_portal = set(extrair_todos_numeros_solicitacoes(tarefa_frame))
-                        
-                        # --- Lógica de Sincronização ---
-                        print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
-                        numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
-
-                        # 1. Encontra as que foram respondidas
-                        respondidas = list(numeros_abertos_db - numeros_atuais_portal)
-                        if respondidas:
-                            database.marcar_como_respondidas(respondidas)
-                            print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
-
-                        # 2. Insere as novas
-                        database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
-                        print(f"✅ Novas solicitações (se houver) inseridas no banco de dados.")
-                        
-                        # 3. Garante que TODAS as ativas estejam como 'Aberto'
-                        database.marcar_como_abertas(list(numeros_atuais_portal))
-                        print(f"✅ Status de {len(numeros_atuais_portal)} solicitações do portal sincronizado para 'Aberto'.")
-
-                    else:
-                        print("❌ Não foi possível alterar o número de registros por página.")
-                else:
-                    print("❌ Não foi possível realizar a pesquisa. O script será encerrado.")
-            else:
-                print("❌ Não foi possível encontrar o botão de pesquisa. O script será encerrado.")
-            
+        driver.get(url_lista)
+    except TimeoutException:
+        print("⚠️ Aviso: Carregamento lento detectado. Forçando parada para verificar conteúdo...")
+        try: driver.execute_script("window.stop();")
+        except: pass
     except Exception as e:
-        print(f"\n========================= ERRO =========================")
-        print(f"Ocorreu uma falha na automação: {e}")
-        print("========================================================")
-    finally:
-        # --- BLOCO FINALLY CORRIGIDO ---
-        # Este bloco agora executa a mesma lógica do nav.fechar()
-        print("\n... Iniciando rotina de fechamento do navegador ...")
+        print(f"❌ Erro de navegação: {e}")
 
-        # O 'with sync_playwright()' já cuida de fechar a conexão do Playwright.
-        # Nós só precisamos matar o processo do Chrome pela porta 9222.
+    # Verifica Sessão
+    if "Sessão expirada" in driver.page_source:
+        print("⚠️ Sessão expirada. Tentando refresh...")
+        driver.refresh()
+        time.sleep(3)
+
+    print("⏳ Localizando tabela...")
+    if not entrar_no_frame_principal(driver):
+        print("❌ Tabela não encontrada. Tentando recarregar...")
+        driver.refresh()
+        time.sleep(5)
+        if not entrar_no_frame_principal(driver):
+            print("❌ Falha crítica: Tabela inacessível.")
+            return
+
+    print("🔍 Pesquisando...")
+    try:
+        btn = wait.until(EC.element_to_be_clickable((By.NAME, "pesquisarPendenciaTarefaForm:btPTarefa")))
+        driver.execute_script("arguments[0].click();", btn)
         
-        print("     Procurando e finalizando o processo do Chrome na porta 9222...")
+        wait.until(EC.presence_of_element_located((By.ID, "pesquisarPendenciaTarefaForm:dataTable:tb")))
+        
+        # Tenta mudar para 50 registros
         try:
-            if sys.platform == "win32":
-                cmd_find_pid = "netstat -ano -p TCP | findstr :9222"
-                result = subprocess.run(cmd_find_pid, shell=True, capture_output=True, text=True, check=False)
-                output = result.stdout.strip()
+            botoes_50 = driver.find_elements(By.XPATH, "//a[contains(text(), '50')]")
+            if botoes_50:
+                driver.execute_script("arguments[0].click();", botoes_50[0])
+                time.sleep(2)
+        except: pass
 
-                if not output:
-                    print("     Nenhum processo encontrado na porta 9222.")
-                else:
-                    pid_match = re.search(r'(\d+)$', output.splitlines()[0])
-                    
-                    if pid_match:
-                        pid = pid_match.group(1)
-                        print(f"     Encontrado processo (PID: {pid}) na porta 9222. Finalizando...")
-                        subprocess.run(f"TASKKILL /F /PID {pid} /T", shell=True, check=False, capture_output=True)
-                        print(f"🏁 Processo {pid} (Chrome) finalizado.")
-                    else:
-                        print(f"     Não foi possível extrair o PID da saída do netstat: {output}")
-            else:
-                # Lógica para Linux/Mac
-                subprocess.run("lsof -t -i:9222 | xargs kill -9", shell=True, check=False, capture_output=True)
-                print("     Comando de finalização (Linux/Mac) executado.")
+    except Exception as e:
+        print(f"❌ Erro na interação inicial: {e}")
+        return
 
-        except Exception as e_kill:
-            print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
+    # --- LOOP DE COLETA ---
+    todos_numeros_portal = set()
+    pagina = 1
+    
+    print("\n📋 Coletando dados...")
+    while True:
+        entrar_no_frame_principal(driver)
+        
+        try:
+            wait.until(EC.visibility_of_element_located((By.XPATH, "//tbody[contains(@id, 'dataTable:tb')]")))
+        except:
+            print("⏹️ Tabela vazia ou fim.")
+            break
 
-        print("--- Rotina de fechamento concluída. Fim da execução. ---")
+        numeros_pag = extrair_numeros_da_pagina(driver)
+        if numeros_pag:
+            print(f"📄 Pág {pagina}: {len(numeros_pag)} itens.")
+            todos_numeros_portal.update(numeros_pag)
+        else:
+            print(f"⏹️ Pág {pagina} sem dados.")
+            break
+        
+        try:
+            botao_proximo = driver.find_element(By.CSS_SELECTOR, "a.mi--chevron-right")
+            if "disabled" in botao_proximo.get_attribute("class") or not botao_proximo.get_attribute("onclick"):
+                break
+            
+            contador_atual = obter_contador_registros(driver)
+            driver.execute_script("arguments[0].click();", botao_proximo)
+            
+            try: WebDriverWait(driver, 10).until(lambda d: obter_contador_registros(d) != contador_atual)
+            except: pass
+            pagina += 1
+        except: break
 
-
-if __name__ == "__main__":
-    main()
+    if todos_numeros_portal:
+        print(f"\n🔄 Sincronizando {len(todos_numeros_portal)} registros...")
+        numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
+        respondidas = list(numeros_abertos_db - todos_numeros_portal)
+        
+        if respondidas:
+            database.marcar_como_respondidas(respondidas)
+            print(f"✅ {len(respondidas)} finalizadas.")
+            
+        database.inserir_novas_solicitacoes(list(todos_numeros_portal))
+        database.marcar_como_abertas(list(todos_numeros_portal))
+        print("✅ Sucesso!")
+    else:
+        print("⚠️ Nada coletado.")

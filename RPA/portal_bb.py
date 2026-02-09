@@ -1,124 +1,199 @@
+import time
+import json
 import re
-from playwright.sync_api import Page, Frame, TimeoutError
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 
-EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
+def buscar_texto_flexivel(driver, texto_label):
+    xpaths = [
+        f"//label[contains(text(), '{texto_label}')]/following-sibling::span",
+        f"//*[contains(text(), '{texto_label}')]/following-sibling::*[1]",
+        f"//td[contains(text(), '{texto_label}')]/following-sibling::td[1]",
+        f"(//*[contains(text(), '{texto_label}')])[1]/following::span[1]"
+    ]
+    for xpath in xpaths:
+        try:
+            elemento = driver.find_element(By.XPATH, xpath)
+            texto = elemento.text.strip()
+            if texto: return texto
+        except: continue
+    return ""
 
-def fazer_login(context) -> Page:
+def encontrar_botao_visivel(driver, seletores):
     """
-    Realiza o processo de login usando a lógica robusta que espera pela
-    confirmação visual do login no portal.
+    Percorre a lista de seletores e retorna o PRIMEIRO elemento que:
+    1. Existe no DOM
+    2. É VISÍVEL (tamanho > 0)
     """
-    try:
-        print("🚀 Iniciando o processo de login pela extensão...")
-        extension_page = context.pages[0] if context.pages else context.new_page()
-        extension_page.goto(EXTENSION_URL)
-        extension_page.wait_for_load_state("domcontentloaded")
+    for xpath in seletores:
+        try:
+            elementos = driver.find_elements(By.XPATH, xpath)
+            for elem in elementos:
+                if elem.is_displayed():
+                    print(f"      👀 Botão VISÍVEL encontrado: {xpath}")
+                    return elem
+        except:
+            continue
+    return None
 
-        print("    - Localizando o campo de busca na extensão...")
-        search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
-        search_input.wait_for(state="visible", timeout=10000)
-        search_input.fill("banco do")
-
-        print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-        login_button = extension_page.locator('div[role="menuitem"]:not([disabled])', has_text="Banco do Brasil - Intranet").first
-        login_button.click(timeout=10000)
-
-        # Espera a nova página (o portal) ser aberta como resultado do clique.
-        with context.expect_page() as new_page_info:
-            print("    - Clicando no botão de confirmação 'ACESSAR'...")
-            extension_page.get_by_role("button", name="ACESSAR").click(timeout=10000)
-        
-        portal_page = new_page_info.value
-        print("    - Aguardando a página inicial do portal carregar e confirmar o login...")
-
-        # --- LÓGICA DE ESPERA ROBUSTA ---
-        elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
-        elemento_de_confirmacao.wait_for(state="visible", timeout=90000)
-        print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
-        
-        
-        # -----------------------------------------------------------
-
-        extension_page.close()
-        print("\n✅ PROCESSO DE LOGIN FINALIZADO.")
-        
-        print("\n▶️  Iniciando a limpeza seletiva de cookies...")
-        context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-        context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-        print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
-        return portal_page
-
-    except TimeoutError as e:
-        print("\n❌ FALHA no processo de login (Timeout).")
-        print("   - O robô não conseguiu encontrar um elemento da extensão ou da página do portal a tempo.")
-        raise e
-    except Exception as e:
-        print(f"\n❌ FALHA inesperada durante o login: {e}")
-        raise e
-
-
-def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
-    """Navega para a página de detalhes e extrai todas as informações."""
+def coletar_detalhes(driver, numero_solicitacao):
+    print(f"\n🔍 --- INICIANDO COLETA: {numero_solicitacao} ---")
+    
     match = re.match(r"(\d{4})\/(\d{10})", numero_solicitacao)
-    if not match:
-        raise ValueError(f"Formato de número inválido: {numero_solicitacao}")
+    if not match: return None
     
     ano, numero = match.groups()
-    url_detalhada = f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?buscaRapidaProcesso=busca_solicitacoes&anoSolicitacaoBuscaRapida={ano}&numeroSolicitacaoBuscaRapida={numero}"
+    url_detalhada = (
+        f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?"
+        f"buscaRapidaProcesso=busca_solicitacoes&"
+        f"anoSolicitacaoBuscaRapida={ano}&"
+        f"numeroSolicitacaoBuscaRapida={numero}"
+    )
     
-    page.goto(url_detalhada, timeout=60000, wait_until="domcontentloaded")
-    page.wait_for_selector('h2.left:has-text("Solicitação : Detalhamento")', timeout=20000)
+    driver.get(url_detalhada)
+    wait = WebDriverWait(driver, 20)
     
-    # Extração da página principal
-    numero_solicitacao_raw = page.locator('span.info_tarefa_label_numero:has-text("Nº da solicitação:") + span.info_tarefa_numero').inner_text()
-    titulo = page.locator('div.left:has(span:has-text("Título:")) span.info_tarefa_label').inner_text()
-    prazo = page.locator('label.label_padrao:has-text("Prazo:") + span span.content').inner_text()
-    
-    try:
-        npj_direcionador = page.locator('label.label_padrao:has-text("NPJ Direcionador:") + span span.content').inner_text()
-    except Exception:
-        npj_direcionador = ""
-
-    dados_solicitacao = {
-        "numero_solicitacao": numero_solicitacao_raw.replace("DMI - ", "").strip(),
-        "titulo": titulo.strip(),
-        "npj_direcionador": npj_direcionador.strip(),
-        "prazo": prazo.strip(),
+    dados = {
+        "numero_solicitacao": numero_solicitacao,
+        "titulo": "", "prazo": "", "npj_direcionador": "",
+        "texto_dmi": "", "numero_processo": "", "polo": "",
+        "status": "Aberto", "data_coleta": time.strftime("%Y-%m-%d %H:%M:%S")
     }
 
-    # Extração do Popup
-    with page.context.expect_event("page") as popup_info:
-        page.locator("#detalhar\\:j_id106").click()
-    popup_page = popup_info.value
-    popup_page.wait_for_load_state("domcontentloaded")
-    texto_dmi = popup_page.locator("div.print").first.inner_text()
-    dados_solicitacao["texto_dmi"] = texto_dmi.strip()
-    popup_page.close()
+    try:
+        # --- ETAPA 1: DADOS DA TELA ---
+        print("   1️⃣ Buscando dados na tela...")
+        try:
+            wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Título')]")))
+            dados["titulo"] = buscar_texto_flexivel(driver, "Título")
+            dados["prazo"] = buscar_texto_flexivel(driver, "Prazo")
+            dados["npj_direcionador"] = buscar_texto_flexivel(driver, "NPJ Direcionador") or buscar_texto_flexivel(driver, "NPJ")
+            print(f"      🔹 Título: {dados['titulo'] or '[NÃO]'}")
+        except Exception as e:
+            print(f"      ❌ Erro na extração básica: {e}")
 
-    # Lógica de API atualizada
-    if dados_solicitacao["npj_direcionador"]:
-        npj_base = dados_solicitacao["npj_direcionador"].split('-')[0]
-        npj_limpo = npj_base.replace('/', '')
-        api_url = f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}"
         
-        api_page = page.context.new_page()
-        api_response = api_page.goto(api_url)
+        # --- ETAPA 2: POPUP (LÓGICA CORRIGIDA) ---
+        print("   2️⃣ Abrindo Popup DMI...")
+        janela_principal = driver.current_window_handle
+        janelas_antes = len(driver.window_handles)
+        sucesso_popup = False
         
-        if api_response.ok:
-            api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
+        # Seletores ajustados para evitar inputs ocultos
+        seletores_botao = [
+            "//input[@type='image'][contains(@id, 'detalhar')]", # Prioriza input type='image'
+            "//img[contains(@title, 'Detalhar')]/..", # Imagem com título
+            "//img[contains(@src, 'detalhar')]/..", # Imagem pelo source
+            "//a[contains(@onclick, 'detalhar')]", # Link com onclick
+            "//*[contains(@id, 'detalhar') and not(@type='hidden')]" # Qualquer coisa com ID detalhar que não seja hidden
+        ]
+
+        for tentativa in range(1, 4):
+            if sucesso_popup: break
             
-            dados_solicitacao["numero_processo"] = api_data.get("data", {}).get("textoNumeroInventario", "Dado ausente na API")
+            print(f"      🔄 Tentativa {tentativa} de abrir Popup...")
             
-            polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
-            polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
-            dados_solicitacao["polo"] = polo_map.get(polo_indicador, "Não definido")
+            # Busca APENAS elementos visíveis
+            btn = encontrar_botao_visivel(driver, seletores_botao)
             
+            if not btn:
+                print("      ❌ Nenhum botão VISÍVEL encontrado no DOM.")
+                break
+
+            try:
+                # ESTRATÉGIA DE CLIQUE
+                if tentativa == 1:
+                    # ActionChains é o melhor para simular mouse real
+                    ActionChains(driver).move_to_element(btn).pause(0.5).click().perform()
+                    print("      🖱️ Clique via ActionChains...")
+                elif tentativa == 2:
+                    btn.click()
+                    print("      🖱️ Clique Nativo...")
+                else:
+                    driver.execute_script("arguments[0].click();", btn)
+                    print("      💻 Clique via JavaScript...")
+
+                # Espera inteligente pela nova janela
+                try:
+                    WebDriverWait(driver, 8).until(lambda d: len(d.window_handles) > janelas_antes)
+                    
+                    # Identifica a nova janela
+                    janelas_novas = driver.window_handles
+                    # Pega a janela que não estava na lista antes
+                    nova_janela = [j for j in janelas_novas if j != janela_principal][-1]
+                    
+                    driver.switch_to.window(nova_janela)
+                    print("      ➡️ Janela nova detectada!")
+                    
+                    # Extração
+                    wait_popup = WebDriverWait(driver, 10)
+                    wait_popup.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                    
+                    try:
+                        try:
+                            elem = driver.find_element(By.CSS_SELECTOR, "div.print")
+                            dados["texto_dmi"] = elem.text.strip()
+                        except:
+                            dados["texto_dmi"] = driver.find_element(By.TAG_NAME, "body").text.strip()
+                        
+                        print(f"      ✅ Texto capturado! ({len(dados['texto_dmi'])} chars)")
+                        sucesso_popup = True
+                    except:
+                        print("      ⚠️ Janela abriu mas falhou ao ler texto.")
+                    
+                    # Fecha popup
+                    driver.close()
+                    driver.switch_to.window(janela_principal)
+                    
+                except:
+                    print(f"      ⚠️ Clique feito, mas janela não abriu na tentativa {tentativa}.")
+                    time.sleep(2)
+
+            except Exception as e:
+                print(f"      ⚠️ Erro ao clicar: {str(e)[:100]}...")
+                if driver.current_window_handle != janela_principal:
+                    driver.switch_to.window(janela_principal)
+                time.sleep(1)
+
+        if not dados["texto_dmi"]:
+            print("      ❌ Falha final: Não foi possível obter o texto do DMI.")
+
+
+        # --- ETAPA 3: API ---
+        print("   3️⃣ API Interna...")
+        if dados["npj_direcionador"]:
+            try:
+                # Extrai apenas números do NPJ
+                npj_limpo = "".join(filter(str.isdigit, dados["npj_direcionador"].split('-')[0]))
+                
+                # Abre nova aba
+                driver.switch_to.new_window('tab')
+                driver.get(f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}")
+                
+                try:
+                    conteudo = driver.find_element(By.TAG_NAME, "body").text
+                    js = json.loads(conteudo)
+                    if "data" in js and js["data"]:
+                        api_data = js["data"]
+                        dados["numero_processo"] = api_data.get("textoNumeroExternoProcesso") or api_data.get("textoNumeroInventario")
+                        polo = api_data.get("indicadorPoloBanco", "")
+                        dados["polo"] = "Ativo" if polo == "A" else "Passivo" if polo == "P" else "Neutro"
+                        print(f"      ✅ API OK: {dados['numero_processo']} | {dados['polo']}")
+                except: pass
+                
+                driver.close()
+                driver.switch_to.window(janela_principal)
+            except:
+                if len(driver.window_handles) > 1:
+                    driver.close()
+                    driver.switch_to.window(janela_principal)
         else:
-            dados_solicitacao["numero_processo"] = f"Processo não encontrado (API {api_response.status})"
-            dados_solicitacao["polo"] = "N/A"
-        api_page.close()
-    else:
-        dados_solicitacao["numero_processo"] = "NPJ não informado"
-        dados_solicitacao["polo"] = "N/A"
-    
-    return dados_solicitacao
+            print("      ⚠️ API pulada.")
+
+        return dados
+
+    except Exception as e:
+        print(f"❌ Erro Geral: {e}")
+        return None

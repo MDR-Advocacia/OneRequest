@@ -261,3 +261,24 @@ def marcar_como_abertas(numeros_solicitacao):
     cursor.executemany("UPDATE solicitacoes SET status_sistema = 'Aberto' WHERE numero_solicitacao = ?", dados_para_atualizar)
     conn.commit()
     conn.close()
+
+
+def obter_solicitacoes_incompletas():
+    """
+    Retorna solicitações que já foram processadas (têm título), 
+    mas falharam em pegar o Texto DMI (campo vazio ou nulo).
+    """
+    conn = conectar(DB_SOLICITACOES)
+    cursor = conn.cursor()
+    # Busca itens Abertos onde o Título existe, mas o DMI está vazio
+    cursor.execute("""
+        SELECT numero_solicitacao 
+        FROM solicitacoes 
+        WHERE status_sistema = 'Aberto' 
+          AND titulo IS NOT NULL 
+          AND titulo != '' 
+          AND (texto_dmi IS NULL OR texto_dmi = '')
+    """)
+    incompletas = [row['numero_solicitacao'] for row in cursor.fetchall()]
+    conn.close()
+    return incompletas
