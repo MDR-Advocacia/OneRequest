@@ -13,9 +13,9 @@ sys.path.insert(0, project_root)
 
 # Importa o módulo da pasta 'bd'
 from bd import database
+from portal_bb import abrir_popup_dmi, fazer_login
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
-EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
 BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
 CDP_ENDPOINT = "http://localhost:9222"
 
@@ -52,46 +52,7 @@ def main():
                 raise ConnectionError("Não foi possível conectar ao navegador.")
 
             context = browser.contexts[0]
-            
-            print(f"🚀 Navegando diretamente para a URL da extensão...")
-            extension_page = context.pages[0] if context.pages else context.new_page()
-            extension_page.goto(EXTENSION_URL)
-            extension_page.wait_for_load_state("domcontentloaded")
-
-            print("    - Localizando o campo de busca na extensão...")
-            search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
-            search_input.wait_for(state="visible", timeout=5000)
-
-            print("    - Pesquisando por 'banco do'...")
-            search_input.fill("banco do")
-
-            with context.expect_event('page') as new_page_info:
-                print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-                login_button = extension_page.locator(
-                    'div[role="menuitem"]:not([disabled])', 
-                    has_text="Banco do Brasil - Intranet"
-                ).first
-                login_button.click(timeout=10000)
-
-                print("    - Clicando no botão de confirmação 'ACESSAR'...")
-                extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-            
-            portal_page = new_page_info.value
-            extension_page.close()
-            
-            print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
-            time.sleep(5)
-            
-            print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
-            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
-            
-            print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
-            
-            print("\n▶️  Iniciando a limpeza seletiva de cookies...")
-            context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-            context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-            print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
+            portal_page = fazer_login(context)
             
             print("\n📂 Carregando números de solicitação pendentes do banco de dados...")
             numeros_solicitacoes = database.obter_solicitacoes_pendentes()
@@ -115,7 +76,7 @@ def main():
                     print(f"\n[🔄] {i+1}/{len(numeros_solicitacoes)} - Processando: {numero_completo_original}")
                     
                     url_detalhada = f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?buscaRapidaProcesso=busca_solicitacoes&anoProcesso=&numeroProcesso=&numeroVariacaoProcesso=&anoProcesso=&numeroProcesso=&numeroVariacaoProcesso=&numeroTombo=&numeroCpf=&numeroCnpj=&nomePessoa=&nomePessoaParte=&nomeFantasia=&nomeFantasiaParte=&anoSolicitacaoBuscaRapida={ano}&numeroSolicitacaoBuscaRapida={numero}&anoOficioBuscaRapida=&numeroOficioBuscaRapida="
-                    
+
                     portal_page.goto(url_detalhada, timeout=60000, wait_until="domcontentloaded")
                     
                     portal_page.wait_for_selector('h2.left:has-text("Solicitação : Detalhamento")', timeout=20000)
@@ -134,11 +95,7 @@ def main():
                         "prazo": prazo.strip(),
                     }
                     
-                    with context.expect_event("page") as popup_info:
-                        portal_page.locator("#detalhar\\:j_id106").click()
-
-                    popup_page = popup_info.value
-                    popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
+                    popup_page = abrir_popup_dmi(portal_page)
                     
                     texto_dmi = popup_page.locator("div.print").first.inner_text()
                     dados_solicitacao["texto_dmi"] = texto_dmi.strip()
@@ -150,23 +107,28 @@ def main():
                     api_url = f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}"
                     
                     api_page = context.new_page()
-                    api_response = api_page.goto(api_url)
+                    try:
+                        api_response = api_page.goto(api_url, timeout=30000, wait_until="domcontentloaded")
 
-                    if api_response.ok:
-                        api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
-                        numero_processo = api_data.get("data", {}).get("textoNumeroExternoProcesso", "Não encontrado")
-                        polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
-                        polo_map = {"A": "Ativo", "P": "Passivo"}
-                        polo = polo_map.get(polo_indicador, "Não definido")
-                        
-                        dados_solicitacao["numero_processo"] = numero_processo
-                        dados_solicitacao["polo"] = polo
-                        print("    - Dados da API extraídos.")
-                    else:
-                        dados_solicitacao["numero_processo"] = "Erro na API"
+                        if api_response and api_response.ok:
+                            api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
+                            numero_processo = api_data.get("data", {}).get("textoNumeroExternoProcesso", "Não encontrado")
+                            polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
+                            polo_map = {"A": "Ativo", "P": "Passivo"}
+                            polo = polo_map.get(polo_indicador, "Não definido")
+
+                            dados_solicitacao["numero_processo"] = numero_processo
+                            dados_solicitacao["polo"] = polo
+                            print("    - Dados da API extraídos.")
+                        else:
+                            status = api_response.status if api_response else "sem resposta"
+                            dados_solicitacao["numero_processo"] = f"Erro na API ({status})"
+                            dados_solicitacao["polo"] = "Erro na API"
+                    except Exception as exc:
+                        dados_solicitacao["numero_processo"] = f"Erro na API: {exc}"
                         dados_solicitacao["polo"] = "Erro na API"
-                    
-                    api_page.close()
+                    finally:
+                        api_page.close()
                     
                     print(f"    - Salvando dados de '{dados_solicitacao['numero_solicitacao']}' no banco de dados...")
                     database.salvar_solicitacao(dados_solicitacao)

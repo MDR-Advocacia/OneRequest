@@ -13,11 +13,11 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
 from bd import database
+from portal_bb import fazer_login
 
 
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
-EXTENSION_URL = "chrome-extension://lnidijeaekolpfeckelhkomndglcglhh/index.html"
 BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
 CDP_ENDPOINT = "http://localhost:9222"
 
@@ -222,35 +222,7 @@ def main():
                 raise ConnectionError("Não foi possível conectar ao navegador.")
 
             context = browser.contexts[0]
-            
-            print(f"🚀 Navegando diretamente para a URL da extensão...")
-            extension_page = context.pages[0] if context.pages else context.new_page()
-            extension_page.goto(EXTENSION_URL)
-            extension_page.wait_for_load_state("domcontentloaded")
-            print("    - Localizando o campo de busca na extensão...")
-            search_input = extension_page.get_by_placeholder("Digite ou selecione um sistema pra acessar")
-            search_input.wait_for(state="visible", timeout=5000)
-            print("    - Pesquisando por 'banco do'...")
-            search_input.fill("banco do")
-            with context.expect_event('page') as new_page_info:
-                print("🖱️  Clicando no item de menu 'Banco do Brasil - Intranet'...")
-                login_button = extension_page.locator('div[role="menuitem"]:not([disabled])', has_text="Banco do Brasil - Intranet").first
-                login_button.click(timeout=10000)
-                print("    - Clicando no botão de confirmação 'ACESSAR'...")
-                extension_page.get_by_role("button", name="ACESSAR").click(timeout=5000)
-            portal_page = new_page_info.value
-            extension_page.close()
-            print("✔️  Login confirmado! Aguardando 5 segundos para a autenticação se propagar.")
-            time.sleep(5)
-            print("    - Navegando para o Portal Jurídico para garantir o carregamento completo...")
-            elemento_de_confirmacao = portal_page.locator('p:text("Portal Jurídico")').first
-            elemento_de_confirmacao.wait_for(state="visible", timeout=90000) 
-            print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
-            print("\n✅ PROCESSO DE LOGIN FINALIZADO. O robô pode continuar.")
-            print("▶️  Iniciando a limpeza seletiva de cookies...")
-            context.clear_cookies(name="JSESSIONID", domain=".juridico.bb.com.br")
-            context.clear_cookies(name="JSESSIONID", domain="juridico.bb.com.br")
-            print("✅ Limpeza de cookies 'JSESSIONID' finalizada.")
+            portal_page = fazer_login(context)
 
             tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
             

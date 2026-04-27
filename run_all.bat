@@ -1,20 +1,47 @@
 @echo off
-REM --- MUDANÇA MAIS IMPORTANTE ---
-REM Força o script a executar a partir da pasta onde ele está salvo
-cd /d %~dp0
-
 chcp 65001
-echo Iniciando o Agendador Mestre de Robos...
+setlocal
+
+set "PROJECT_DIR=%~dp0"
+set "PYTHON_EXE=%PROJECT_DIR%venv\Scripts\python.exe"
+set "MAIN_SCRIPT=%PROJECT_DIR%run_robos.py"
+
+cd /d "%PROJECT_DIR%"
+
+echo =========================================================
+echo   OneRequest - Agendador Mestre de Robos
+echo =========================================================
 echo.
-echo Ativando o ambiente virtual...
-REM Agora 'venv\...' será encontrado, pois estamos na pasta certa
-call venv\Scripts\activate
+
+if not exist "%PYTHON_EXE%" (
+    echo [ERRO] Ambiente virtual nao encontrado em:
+    echo        %PYTHON_EXE%
+    echo.
+    echo Crie ou ajuste o venv antes de executar este script.
+    exit /b 1
+)
+
+if not exist "%MAIN_SCRIPT%" (
+    echo [ERRO] Script principal nao encontrado em:
+    echo        %MAIN_SCRIPT%
+    exit /b 1
+)
+
+echo [INFO] Projeto: %PROJECT_DIR%
+echo [INFO] Python:  %PYTHON_EXE%
+echo [INFO] Script:  %MAIN_SCRIPT%
+echo.
+echo [INFO] Iniciando automacao...
+echo.
+
+"%PYTHON_EXE%" "%MAIN_SCRIPT%"
+set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
-echo Executando o script principal de automacao...
-REM Agora 'run_robos.py' será encontrado
-python run_robos.py
+if "%EXIT_CODE%"=="0" (
+    echo [OK] Processo finalizado com sucesso.
+) else (
+    echo [ERRO] Processo finalizado com codigo %EXIT_CODE%.
+)
 
-echo.
-echo O processo foi finalizado.
-pause
+exit /b %EXIT_CODE%
