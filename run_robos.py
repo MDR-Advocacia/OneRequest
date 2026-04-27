@@ -1,7 +1,13 @@
 import schedule
 import time
 import subprocess
+import sys
+from pathlib import Path
 from datetime import datetime
+
+PROJECT_DIR = Path(__file__).resolve().parent
+PYTHON_EXE = sys.executable
+
 
 def executar_robo_1():
     """Executa o Robô 1: Coleta de Números de Solicitação."""
@@ -9,9 +15,9 @@ def executar_robo_1():
     try:
         # Chama o script do Robô 1
         subprocess.run(
-            ["python", "RPA/coletaDadosNumeroSolicitacoes.py"],
+            [PYTHON_EXE, str(PROJECT_DIR / "RPA" / "coletaDadosNumeroSolicitacoes.py")],
             check=True,
-            shell=True
+            cwd=PROJECT_DIR
         )
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- ROBO 1 FINALIZADO COM SUCESSO ---")
         return True # Retorna sucesso
@@ -25,9 +31,9 @@ def executar_robo_2():
     try:
         # Chama o script do Robô 2
         subprocess.run(
-            ["python", "RPA/main.py"],
+            [PYTHON_EXE, str(PROJECT_DIR / "RPA" / "main.py")],
             check=True,
-            shell=True
+            cwd=PROJECT_DIR
         )
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- ROBO 2 FINALIZADO COM SUCESSO ---")
     except Exception as e:

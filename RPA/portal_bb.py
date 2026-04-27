@@ -165,10 +165,15 @@ def clicar_com_retentativas(page: Page, seletor: str, descricao: str, *, tentati
         try:
             botao = page.locator(seletor).first
             botao.wait_for(state="visible", timeout=espera_ms)
-            botao.click(timeout=espera_ms)
+            botao.click(timeout=espera_ms, force=True)
             return
         except Exception as exc:
             ultimo_erro = exc
+            try:
+                page.locator(seletor).first.evaluate("el => el.click()")
+                return
+            except Exception as js_exc:
+                ultimo_erro = js_exc
             if tentativa < tentativas:
                 time.sleep(1)
     raise TimeoutError(f"Não foi possível clicar em {descricao}.") from ultimo_erro
@@ -256,6 +261,34 @@ def limpar_cookies_sessao_portal(context):
     print(f"✅ Limpeza de cookies de sessão finalizada ({removidos} remoções solicitadas).")
 
 
+def abrir_popup_dmi(page: Page):
+    botao_detalhar = page.locator("#detalhar\\:j_id106").first
+    botao_detalhar.wait_for(state="visible", timeout=20000)
+
+    for tentativa in range(1, 3):
+        try:
+            with page.context.expect_event("page", timeout=15000) as popup_info:
+                botao_detalhar.evaluate(
+                    """el => {
+                        const event = new MouseEvent('click', {
+                            bubbles: true,
+                            cancelable: true,
+                            view: window
+                        });
+                        el.dispatchEvent(event);
+                    }"""
+                )
+            popup_page = popup_info.value
+            popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
+            return popup_page
+        except Exception as click_error:
+            if tentativa == 1:
+                print("    - Popup da DMI não abriu. Tentando novamente...")
+                time.sleep(1)
+                continue
+            raise click_error
+
+
 def fazer_login(context) -> Page:
     """
     Realiza login direto no Portal Jurídico usando credenciais do ambiente.
@@ -284,15 +317,26 @@ def fazer_login(context) -> Page:
 
         if etapa != "authenticated":
             print("    - Informando senha no SSO...")
-            password_input = aguardar_campo_senha(portal_page, timeout=login_timeout)
-            password_input.fill(senha)
-            clicar_com_retentativas(
-                portal_page,
-                "input#loginButton_0[name='callback_4']",
-                "botão de envio da senha",
-                tentativas=int(os.getenv("RPA_LOGIN_STAGE_ATTEMPTS", "3")),
-            )
-            aguardar_autenticado(portal_page, timeout=max(login_timeout, stage_timeout))
+            tentativas = int(os.getenv("RPA_LOGIN_STAGE_ATTEMPTS", "3"))
+            ultimo_erro = None
+            for tentativa in range(1, tentativas + 1):
+                password_input = aguardar_campo_senha(portal_page, timeout=login_timeout)
+                password_input.fill(senha)
+                clicar_com_retentativas(
+                    portal_page,
+                    "input#loginButton_0[name='callback_4']",
+                    "botão de envio da senha",
+                    tentativas=1,
+                )
+                try:
+                    aguardar_autenticado(portal_page, timeout=stage_timeout)
+                    break
+                except TimeoutError as exc:
+                    ultimo_erro = exc
+                    if tentativa < tentativas:
+                        print(f"    - Portal permaneceu na senha na tentativa {tentativa}/{tentativas}. Repetindo...")
+                        continue
+                    raise ultimo_erro
 
         print("    - Aguardando a página inicial do portal carregar e confirmar o login...")
         if "Portal Jurídico" not in texto_pagina(portal_page):
@@ -322,7 +366,7 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     
     ano, numero = match.groups()
     url_detalhada = f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?buscaRapidaProcesso=busca_solicitacoes&anoSolicitacaoBuscaRapida={ano}&numeroSolicitacaoBuscaRapida={numero}"
-    
+
     page.goto(url_detalhada, timeout=60000, wait_until="domcontentloaded")
     page.wait_for_selector('h2.left:has-text("Solicitação : Detalhamento")', timeout=20000)
     
@@ -344,10 +388,7 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     }
 
     # Extração do Popup
-    with page.context.expect_event("page") as popup_info:
-        page.locator("#detalhar\\:j_id106").click()
-    popup_page = popup_info.value
-    popup_page.wait_for_load_state("domcontentloaded")
+    popup_page = abrir_popup_dmi(page)
     texto_dmi = popup_page.locator("div.print").first.inner_text()
     dados_solicitacao["texto_dmi"] = texto_dmi.strip()
     popup_page.close()
@@ -357,23 +398,29 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
         npj_base = dados_solicitacao["npj_direcionador"].split('-')[0]
         npj_limpo = npj_base.replace('/', '')
         api_url = f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}"
-        
+
         api_page = page.context.new_page()
-        api_response = api_page.goto(api_url)
-        
-        if api_response.ok:
-            api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
-            
-            dados_solicitacao["numero_processo"] = api_data.get("data", {}).get("textoNumeroInventario", "Dado ausente na API")
-            
-            polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
-            polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
-            dados_solicitacao["polo"] = polo_map.get(polo_indicador, "Não definido")
-            
-        else:
-            dados_solicitacao["numero_processo"] = f"Processo não encontrado (API {api_response.status})"
-            dados_solicitacao["polo"] = "N/A"
-        api_page.close()
+        try:
+            api_response = api_page.goto(api_url, timeout=30000, wait_until="domcontentloaded")
+
+            if api_response and api_response.ok:
+                api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
+
+                dados_solicitacao["numero_processo"] = api_data.get("data", {}).get("textoNumeroInventario", "Dado ausente na API")
+
+                polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
+                polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
+                dados_solicitacao["polo"] = polo_map.get(polo_indicador, "Não definido")
+
+            else:
+                status = api_response.status if api_response else "sem resposta"
+                dados_solicitacao["numero_processo"] = f"Processo não encontrado (API {status})"
+                dados_solicitacao["polo"] = "N/A"
+        except Exception as exc:
+            dados_solicitacao["numero_processo"] = f"Erro na API: {exc}"
+            dados_solicitacao["polo"] = "Erro na API"
+        finally:
+            api_page.close()
     else:
         dados_solicitacao["numero_processo"] = "NPJ não informado"
         dados_solicitacao["polo"] = "N/A"
