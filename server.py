@@ -15,6 +15,28 @@ import requests
 app = Flask(__name__)
 app.secret_key = 'sua_chave_secreta_super_segura_pode_ser_qualquer_coisa' 
 
+
+def carregar_env_local():
+    """Carrega .env local sem depender de python-dotenv."""
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(env_path):
+        return
+    with open(env_path, encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            env_key = key.strip()
+            env_value = value.strip().strip('"').strip("'")
+            if env_key.startswith("TWOTASK_"):
+                os.environ[env_key] = env_value
+            else:
+                os.environ.setdefault(env_key, env_value)
+
+
+carregar_env_local()
+
 # --- Configuração do Flask-Login ---
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -450,10 +472,14 @@ def api_criar_tarefa():
     }
 
     # 5. Envia o POST para a API externa
-    API_URL = "http://192.168.0.66:8000/api/v1/tasks/batch-create"
+    API_URL = os.getenv("TWOTASK_BATCH_CREATE_URL", "https://flow.mdradvocacia.com/api/v1/tasks/batch-create")
+    api_key = (os.getenv("TWOTASK_BATCH_API_KEY") or "").strip()
+    if not api_key:
+        return jsonify({'status': 'erro', 'mensagem': 'TWOTASK_BATCH_API_KEY não configurada no .env do OneRequest.'}), 500
+    headers = {"X-Batch-Api-Key": api_key}
     
     try:
-        response = requests.post(API_URL, json=output_data, timeout=10)
+        response = requests.post(API_URL, json=output_data, headers=headers, timeout=10)
         
         # --- CORREÇÃO: ACEITAR 202 COMO SUCESSO ---
         if response.status_code in [200, 201, 202]:

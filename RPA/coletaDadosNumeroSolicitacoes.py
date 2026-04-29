@@ -14,6 +14,9 @@ sys.path.insert(0, project_root)
 
 from bd import database
 from portal_bb import fazer_login
+from observability import install_print_logger
+
+install_print_logger("robo-coleta-numeros")
 
 
 

@@ -263,9 +263,11 @@ def limpar_cookies_sessao_portal(context):
 
 def abrir_popup_dmi(page: Page):
     botao_detalhar = page.locator("#detalhar\\:j_id106").first
-    botao_detalhar.wait_for(state="visible", timeout=20000)
+    timeout_botao = int(os.getenv("RPA_DMI_BOTAO_TIMEOUT_MS", "30000"))
+    tentativas_popup = int(os.getenv("RPA_DMI_POPUP_TENTATIVAS", "3"))
+    botao_detalhar.wait_for(state="visible", timeout=timeout_botao)
 
-    for tentativa in range(1, 3):
+    for tentativa in range(1, tentativas_popup + 1):
         try:
             with page.context.expect_event("page", timeout=15000) as popup_info:
                 botao_detalhar.evaluate(
@@ -282,8 +284,8 @@ def abrir_popup_dmi(page: Page):
             popup_page.wait_for_load_state("domcontentloaded", timeout=30000)
             return popup_page
         except Exception as click_error:
-            if tentativa == 1:
-                print("    - Popup da DMI não abriu. Tentando novamente...")
+            if tentativa < tentativas_popup:
+                print(f"    - Popup da DMI não abriu na tentativa {tentativa}/{tentativas_popup}. Tentando novamente...")
                 time.sleep(1)
                 continue
             raise click_error
@@ -367,8 +369,15 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     ano, numero = match.groups()
     url_detalhada = f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?buscaRapidaProcesso=busca_solicitacoes&anoSolicitacaoBuscaRapida={ano}&numeroSolicitacaoBuscaRapida={numero}"
 
-    page.goto(url_detalhada, timeout=60000, wait_until="domcontentloaded")
-    page.wait_for_selector('h2.left:has-text("Solicitação : Detalhamento")', timeout=20000)
+    page.goto(
+        url_detalhada,
+        timeout=int(os.getenv("RPA_DETALHE_GOTO_TIMEOUT_MS", "90000")),
+        wait_until="domcontentloaded",
+    )
+    page.wait_for_selector(
+        'h2.left:has-text("Solicitação : Detalhamento")',
+        timeout=int(os.getenv("RPA_DETALHE_SELECTOR_TIMEOUT_MS", "30000")),
+    )
     
     # Extração da página principal
     numero_solicitacao_raw = page.locator('span.info_tarefa_label_numero:has-text("Nº da solicitação:") + span.info_tarefa_numero').inner_text()

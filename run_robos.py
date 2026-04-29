@@ -4,14 +4,17 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
+from RPA.observability import install_print_logger, log_event
 
 PROJECT_DIR = Path(__file__).resolve().parent
 PYTHON_EXE = sys.executable
+logger = install_print_logger("agendador-mestre")
 
 
 def executar_robo_1():
     """Executa o Robô 1: Coleta de Números de Solicitação."""
     print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- INICIANDO ROBO 1: Coleta de Numeros ---")
+    log_event(logger, "Iniciando robo 1.", robot="robo-coleta-numeros", status="started")
     try:
         # Chama o script do Robô 1
         subprocess.run(
@@ -20,14 +23,17 @@ def executar_robo_1():
             cwd=PROJECT_DIR
         )
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- ROBO 1 FINALIZADO COM SUCESSO ---")
+        log_event(logger, "Robo 1 finalizado com sucesso.", robot="robo-coleta-numeros", status="success")
         return True # Retorna sucesso
     except Exception as e:
         print(f"\n!!!!!! ERRO CRITICO NA EXECUCAO DO ROBO 1: {e} !!!!!!")
+        log_event(logger, f"Erro critico na execucao do robo 1: {e}", robot="robo-coleta-numeros", status="error")
         return False # Retorna falha
 
 def executar_robo_2():
     """Executa o Robô 2: Coleta de Detalhes das Solicitações."""
     print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- INICIANDO ROBO 2: Coleta de Detalhes ---")
+    log_event(logger, "Iniciando robo 2.", robot="robo-detalhes", status="started")
     try:
         # Chama o script do Robô 2
         subprocess.run(
@@ -36,8 +42,10 @@ def executar_robo_2():
             cwd=PROJECT_DIR
         )
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] --- ROBO 2 FINALIZADO COM SUCESSO ---")
+        log_event(logger, "Robo 2 finalizado com sucesso.", robot="robo-detalhes", status="success")
     except Exception as e:
         print(f"\n!!!!!! ERRO CRITICO NA EXECUCAO DO ROBO 2: {e} !!!!!!")
+        log_event(logger, f"Erro critico na execucao do robo 2: {e}", robot="robo-detalhes", status="error")
 
 def ciclo_completo_de_automacao():
     """

@@ -14,6 +14,9 @@ sys.path.insert(0, project_root)
 # Importa o módulo da pasta 'bd'
 from bd import database
 from portal_bb import abrir_popup_dmi, fazer_login
+from observability import install_print_logger
+
+install_print_logger("robo-detalhes-legado")
 
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
 BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
