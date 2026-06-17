@@ -205,7 +205,19 @@ def atualizar_detalhes_solicitacao(dados_solicitacao):
 def obter_solicitacoes_pendentes():
     conn = conectar(DB_SOLICITACOES)
     cursor = conn.cursor()
-    cursor.execute("SELECT numero_solicitacao FROM solicitacoes WHERE titulo IS NULL;")
+    cursor.execute("""
+    SELECT numero_solicitacao FROM solicitacoes
+    WHERE status_sistema = 'Aberto'
+      AND (
+           titulo IS NULL
+        OR numero_processo IS NULL
+        OR numero_processo = ''
+        OR numero_processo LIKE 'Consulta pendente%'
+        OR numero_processo LIKE 'Erro na API%'
+        OR polo = 'Erro na API'
+        OR polo = 'Pendente'
+      );
+    """)
     pendentes = [row['numero_solicitacao'] for row in cursor.fetchall()]
     conn.close()
     return pendentes

@@ -261,6 +261,13 @@ def limpar_cookies_sessao_portal(context):
     print(f"✅ Limpeza de cookies de sessão finalizada ({removidos} remoções solicitadas).")
 
 
+def deve_limpar_cookies_antes_login() -> bool:
+    return os.getenv(
+        "RPA_LIMPAR_COOKIES_ANTES_LOGIN",
+        os.getenv("RPA_LIMPAR_COOKIES_APOS_LOGIN", "1"),
+    ) == "1"
+
+
 def abrir_popup_dmi(page: Page):
     botao_detalhar = page.locator("#detalhar\\:j_id106").first
     timeout_botao = int(os.getenv("RPA_DMI_BOTAO_TIMEOUT_MS", "30000"))
@@ -302,6 +309,11 @@ def fazer_login(context) -> Page:
 
         print("🚀 Iniciando login direto no SSO do Portal Jurídico...")
         portal_page = context.pages[0] if context.pages else context.new_page()
+
+        if deve_limpar_cookies_antes_login():
+            print("    - Limpando cookies de sessão antes de iniciar novo login...")
+            limpar_cookies_sessao_portal(context)
+
         portal_page.goto(LOGIN_URL, timeout=90000, wait_until="domcontentloaded")
         aguardar_documento(portal_page, timeout=30000)
 
@@ -347,8 +359,6 @@ def fazer_login(context) -> Page:
         print("    - Verificacao de login bem-sucedida! Elemento 'Portal Juridico' encontrado.")
 
         print("\n✅ PROCESSO DE LOGIN FINALIZADO.")
-        
-        limpar_cookies_sessao_portal(context)
         return portal_page
 
     except TimeoutError as e:
@@ -358,6 +368,109 @@ def fazer_login(context) -> Page:
     except Exception as e:
         print(f"\n❌ FALHA inesperada durante o login: {e}")
         raise e
+
+
+def extrair_dados_processo_api(api_data: dict) -> tuple[str, str, bool]:
+    dados = api_data.get("data", {})
+    numero_processo = (
+        dados.get("textoNumeroInventario")
+        or dados.get("textoNumeroExternoProcesso")
+        or "Dado ausente na API"
+    )
+    polo_indicador = dados.get("indicadorPoloBanco", "")
+    polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
+    return numero_processo, polo_map.get(polo_indicador, "Não definido"), False
+
+
+def dados_processo_por_status(status: int, api_data: dict | None = None) -> tuple[str, str, bool]:
+    if 200 <= status < 300 and api_data:
+        return extrair_dados_processo_api(api_data)
+
+    if status in (401, 403, 408, 429) or status >= 500:
+        return f"Consulta pendente (API {status})", "Pendente", True
+
+    return f"Processo não encontrado (API {status})", "N/A", False
+
+
+def dados_processo_por_resposta(response) -> tuple[str, str, bool]:
+    if response.ok:
+        return extrair_dados_processo_api(response.json())
+
+    return dados_processo_por_status(response.status)
+
+
+def consultar_dados_processo_no_navegador(page: Page, api_url: str) -> tuple[str, str, bool]:
+    """Executa a consulta dentro da pagina logada, preservando cookies/tokens do navegador."""
+    resultado = page.evaluate(
+        """async (url) => {
+            const response = await fetch(url, {
+                method: "GET",
+                credentials: "include",
+                headers: {
+                    "Accept": "application/json, text/plain, */*"
+                }
+            });
+
+            const text = await response.text();
+            let data = null;
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch (error) {
+                data = null;
+            }
+
+            return {
+                ok: response.ok,
+                status: response.status,
+                data,
+                bodyPreview: text.slice(0, 300)
+            };
+        }""",
+        api_url,
+    )
+
+    if resultado["ok"]:
+        return extrair_dados_processo_api(resultado["data"] or {})
+
+    status = resultado["status"]
+    if status in (401, 403):
+        print(f"    - Fetch no navegador tambem retornou {status}. Previa: {resultado['bodyPreview']}")
+    return dados_processo_por_status(status, resultado.get("data"))
+
+
+def aquecer_sessao_paj(page: Page):
+    sessao_page = page.context.new_page()
+    try:
+        sessao_page.goto(
+            PORTAL_HOME_URL,
+            timeout=int(os.getenv("RPA_API_AQUECER_SESSAO_TIMEOUT_MS", "60000")),
+            wait_until="domcontentloaded",
+        )
+    finally:
+        sessao_page.close()
+
+
+def consultar_dados_processo(page: Page, npj_limpo: str) -> tuple[str, str, bool]:
+    """Consulta os dados do processo na API usando a mesma sessao do navegador."""
+    api_url = f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}"
+    timeout = int(os.getenv("RPA_API_PROCESSO_TIMEOUT_MS", "30000"))
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Referer": PORTAL_HOME_URL,
+    }
+
+    response = page.context.request.get(api_url, headers=headers, timeout=timeout)
+    if response.status not in (401, 403):
+        return dados_processo_por_resposta(response)
+
+    print(f"    - API retornou {response.status}; renovando sessao PAJ e tentando novamente...")
+    aquecer_sessao_paj(page)
+    response = page.context.request.get(api_url, headers=headers, timeout=timeout)
+    if response.status not in (401, 403):
+        return dados_processo_por_resposta(response)
+
+    print(f"    - API via request ainda retornou {response.status}; tentando fetch dentro do navegador...")
+    return consultar_dados_processo_no_navegador(page, api_url)
 
 
 def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
@@ -406,30 +519,15 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     if dados_solicitacao["npj_direcionador"]:
         npj_base = dados_solicitacao["npj_direcionador"].split('-')[0]
         npj_limpo = npj_base.replace('/', '')
-        api_url = f"https://juridico.bb.com.br/paj/resources/app/v1/processo/consulta/{npj_limpo}"
 
-        api_page = page.context.new_page()
         try:
-            api_response = api_page.goto(api_url, timeout=30000, wait_until="domcontentloaded")
-
-            if api_response and api_response.ok:
-                api_data = api_page.evaluate("() => JSON.parse(document.body.innerText)")
-
-                dados_solicitacao["numero_processo"] = api_data.get("data", {}).get("textoNumeroInventario", "Dado ausente na API")
-
-                polo_indicador = api_data.get("data", {}).get("indicadorPoloBanco", "")
-                polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
-                dados_solicitacao["polo"] = polo_map.get(polo_indicador, "Não definido")
-
-            else:
-                status = api_response.status if api_response else "sem resposta"
-                dados_solicitacao["numero_processo"] = f"Processo não encontrado (API {status})"
-                dados_solicitacao["polo"] = "N/A"
+            numero_processo, polo, _retry_later = consultar_dados_processo(page, npj_limpo)
+            dados_solicitacao["numero_processo"] = numero_processo
+            dados_solicitacao["polo"] = polo
         except Exception as exc:
-            dados_solicitacao["numero_processo"] = f"Erro na API: {exc}"
-            dados_solicitacao["polo"] = "Erro na API"
-        finally:
-            api_page.close()
+            print(f"    - Consulta da API falhou; sera tentada novamente no proximo ciclo: {exc}")
+            dados_solicitacao["numero_processo"] = "Consulta pendente"
+            dados_solicitacao["polo"] = "Pendente"
     else:
         dados_solicitacao["numero_processo"] = "NPJ não informado"
         dados_solicitacao["polo"] = "N/A"

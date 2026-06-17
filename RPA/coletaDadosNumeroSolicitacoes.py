@@ -77,40 +77,63 @@ def alterar_registros_por_pagina(frame):
 
     try:
         seletor_50 = 'a.dr-dscr-button:has-text("50")'
+        seletor_info = "div.dataTableNumeroRegistros"
+        seletor_linhas = 'tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr'
 
         # 1. Verifica se o botão '50' está visível. Se não estiver (ex: só tem 5 registros), segue o fluxo.
-        if not frame.locator(seletor_50).is_visible():
+        botao_50 = frame.locator(seletor_50).first
+        if not botao_50.is_visible(timeout=3000):
             print("⚠️ Botão '50' não encontrado ou não necessário (poucos registros). Mantendo paginação atual.")
             return True
 
         # Captura o texto atual antes de clicar para garantir que mudou depois (opcional, mas robusto)
-        seletor_info = "div.dataTableNumeroRegistros"
         try:
-            texto_inicial = frame.locator(seletor_info).first.inner_text()
-        except:
+            texto_inicial = frame.locator(seletor_info).first.inner_text(timeout=2000).strip()
+        except Exception:
             texto_inicial = ""
 
+        try:
+            qtd_linhas_inicial = frame.locator(seletor_linhas).count()
+        except Exception:
+            qtd_linhas_inicial = 0
+
         print("🖱️  Clicando no botão '50' para expandir registros...")
-        frame.click(seletor_50, timeout=10000)
+        botao_50.click(timeout=10000)
         
         print("[⏳] Aguardando atualização da tabela...")
 
-        # 2. Espera genérica: aguarda o elemento de contagem estar visível novamente
-        # Não usamos has-text("1-50") pois pode ser "1-30", "1-12", etc.
-        frame.wait_for_selector(seletor_info, state="visible", timeout=30000)
+        for _ in range(30): # Tenta por até 15 segundos (30 * 0.5s)
+            texto_atual = ""
+            try:
+                texto_atual = frame.locator(seletor_info).first.inner_text(timeout=1000).strip()
+            except Exception:
+                pass
 
-        # 3. Validação extra: Aguarda o texto começar com "1-" (ex: 1-50, 1-30)
-        # Isso confirma que a tabela foi carregada, independente da quantidade total.
-        # O loop abaixo garante que não pegamos o texto antigo por azar.
-        for _ in range(20): # Tenta por até 10 segundos (20 * 0.5s)
-            texto_atual = frame.locator(seletor_info).first.inner_text().strip()
-            if texto_atual != texto_inicial and texto_atual.startswith("1-"):
+            if texto_atual and texto_atual != texto_inicial and texto_atual.startswith("1-"):
                 print(f"✅ Paginação atualizada com sucesso. Exibindo: {texto_atual}")
                 return True
+
+            try:
+                qtd_linhas_atual = frame.locator(seletor_linhas).count()
+                if qtd_linhas_atual > qtd_linhas_inicial or qtd_linhas_atual >= 50:
+                    print(f"✅ Paginação atualizada com sucesso. Linhas visíveis: {qtd_linhas_atual}")
+                    return True
+            except Exception:
+                pass
+
             time.sleep(0.5)
         
-        print(f"⚠️ Aviso: O texto da paginação não mudou ({texto_inicial}), mas o elemento está visível. Prosseguindo.")
-        return True
+        try:
+            qtd_linhas_atual = frame.locator(seletor_linhas).count()
+        except Exception:
+            qtd_linhas_atual = 0
+
+        if qtd_linhas_atual > 0:
+            print(f"⚠️ Aviso: não foi possível confirmar a paginação pelo contador, mas há {qtd_linhas_atual} linhas. Prosseguindo.")
+            return True
+
+        print("❌ Não foi possível confirmar a atualização da paginação nem localizar linhas na tabela.")
+        return False
 
     except Exception as e:
         print(f"[❌] Falha não bloqueante ao alterar paginação: {e}")
