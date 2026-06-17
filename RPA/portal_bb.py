@@ -4,6 +4,8 @@ import os
 import time
 from playwright.sync_api import Page, Frame, TimeoutError
 
+import onelog_client
+
 LOGIN_URL = (
     "https://loginweb.bb.com.br/sso/XUI/?realm=/paj"
     "&goto=https://juridico.bb.com.br/wfj#login"
@@ -298,10 +300,110 @@ def abrir_popup_dmi(page: Page):
             raise click_error
 
 
-def fazer_login(context) -> Page:
-    """
-    Realiza login direto no Portal Jurídico usando credenciais do ambiente.
-    """
+def _formatar_cookie_para_playwright(cookie):
+    """Converte um cookie do OneLog para o formato esperado pelo Playwright."""
+    name = cookie.get("name")
+    value = cookie.get("value")
+    domain = cookie.get("domain")
+    if not name or value is None or not domain:
+        return None
+
+    formatado = {
+        "name": name,
+        "value": str(value),
+        "domain": domain,
+        "path": cookie.get("path") or "/",
+        "secure": bool(cookie.get("secure", True)),
+        "httpOnly": bool(cookie.get("httpOnly", cookie.get("http_only", False))),
+    }
+
+    expires = cookie.get("expires") or cookie.get("expiry") or cookie.get("expirationDate")
+    if expires:
+        try:
+            formatado["expires"] = float(expires)
+        except (TypeError, ValueError):
+            pass
+
+    same_site = cookie.get("sameSite") or cookie.get("same_site")
+    if same_site:
+        normalized = str(same_site).strip().capitalize()
+        if normalized in {"Strict", "Lax", "None"}:
+            formatado["sameSite"] = normalized
+
+    return formatado
+
+
+def _injetar_cookies_onelog(context, cookies):
+    """Injeta cookies recebidos do OneLog no contexto do Playwright."""
+    if not cookies:
+        raise RuntimeError("OneLog não retornou cookies")
+
+    cookies_formatados = []
+    for cookie in cookies:
+        formatado = _formatar_cookie_para_playwright(cookie)
+        if formatado:
+            cookies_formatados.append(formatado)
+
+    if not cookies_formatados:
+        raise RuntimeError("Nenhum cookie do OneLog pôde ser formatado para o Playwright")
+
+    context.add_cookies(cookies_formatados)
+    print(f"🍪 {len(cookies_formatados)} cookies injetados a partir do OneLog.")
+
+
+def fazer_login_onelog(context) -> Page:
+    """Realiza login via OneLog: obtém cookies autenticados e injeta no navegador."""
+    try:
+        print("🚀 Iniciando login via OneLog...")
+        session_data = onelog_client.get_session()
+        cookies = session_data.get("cookies") or []
+        user_agent = session_data.get("user_agent")
+
+        portal_page = context.pages[0] if context.pages else context.new_page()
+
+        if user_agent:
+            try:
+                cdp = context.new_cdp_session(portal_page)
+                cdp.send("Network.setUserAgentOverride", {"userAgent": user_agent})
+                print(f"    - User-Agent do OneLog aplicado.")
+            except Exception as exc:
+                print(f"    ⚠️ Não foi possível aplicar user-agent do OneLog: {exc}")
+
+        _injetar_cookies_onelog(context, cookies)
+
+        print("    - Navegando para o portal com cookies injetados...")
+        portal_page.goto(PORTAL_HOME_URL, timeout=90000, wait_until="domcontentloaded")
+        aguardar_documento(portal_page, timeout=30000)
+
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            url_atual = portal_page.url.lower()
+            if any(hint in url_atual for hint in LOGIN_URL_HINTS):
+                time.sleep(0.5)
+                continue
+            if pagina_erro_acesso(portal_page):
+                raise RuntimeError("Portal retornou página de erro após injeção de cookies do OneLog.")
+            if portal_principal_visivel(portal_page):
+                break
+            time.sleep(0.5)
+        else:
+            raise TimeoutError(
+                "Autenticação via OneLog não foi confirmada. "
+                f"URL atual: {portal_page.url}. Prévia: {texto_pagina(portal_page)[:300]}"
+            )
+
+        onelog_client.renew_session()
+        print("    - Verificação de login bem-sucedida! Elemento 'Portal Jurídico' encontrado.")
+        print("\n✅ PROCESSO DE LOGIN VIA ONELOG FINALIZADO.")
+        return portal_page
+
+    except Exception as e:
+        print(f"\n❌ FALHA no login via OneLog: {e}")
+        raise e
+
+
+def fazer_login_direto(context) -> Page:
+    """Realiza login direto no Portal Jurídico usando credenciais do ambiente (fallback)."""
     try:
         usuario, senha = obter_credenciais()
         login_timeout = int(os.getenv("RPA_LOGIN_TIMEOUT", "60")) * 1000
@@ -368,6 +470,19 @@ def fazer_login(context) -> Page:
     except Exception as e:
         print(f"\n❌ FALHA inesperada durante o login: {e}")
         raise e
+
+
+def fazer_login(context) -> Page:
+    """
+    Realiza login no Portal Jurídico.
+    Prefere OneLog quando configurado; caso contrário, faz login direto via SSO.
+    """
+    if onelog_client.is_configured():
+        print("🔐 OneLog configurado. Usando autenticação via cookies do OneLog.")
+        return fazer_login_onelog(context)
+
+    print("🔐 OneLog não configurado. Usando login direto no SSO.")
+    return fazer_login_direto(context)
 
 
 def extrair_dados_processo_api(api_data: dict) -> tuple[str, str, bool]:
