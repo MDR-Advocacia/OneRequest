@@ -7,8 +7,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-onerequest}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-onerequest}"]
       interval: 5s
@@ -20,14 +20,10 @@ services:
     build: .
     command: python server.py
     ports:
-      - "5000:5000"
-    volumes:
-      - .:/app
+      - "${APP_PORT:-5001}:5000"
     depends_on:
       db:
         condition: service_healthy
-    env_file:
-      - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-onerequest}:${POSTGRES_PASSWORD:-senha_segura}@db:5432/${POSTGRES_DB:-onerequest}
     restart: unless-stopped
