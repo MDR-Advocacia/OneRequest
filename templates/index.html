@@ -120,7 +120,7 @@
                     
                     <td>{{ item['numero_solicitacao'] }}</td>
                     
-                    <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower %}class="status-info"{% endif %}>
+                    <td {% if 'não' in item['numero_processo']|lower or 'erro' in item['numero_processo']|lower or 'pendente' in item['numero_processo']|lower %}class="status-info"{% endif %}>
                         {{ item['numero_processo'] }}
                     </td>
 
