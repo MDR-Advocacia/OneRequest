@@ -11,8 +11,10 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-# Importa o módulo da pasta 'bd'
-from bd import database
+from dotenv import load_dotenv
+load_dotenv(os.path.join(project_root, '.env'))
+
+from RPA import api_client as database
 from portal_bb import abrir_popup_dmi, fazer_login
 from observability import install_print_logger
 

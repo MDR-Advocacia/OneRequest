@@ -1,15 +1,36 @@
-version: '3.8'
-
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-onerequest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-senha_segura}
+      POSTGRES_DB: ${POSTGRES_DB:-onerequest}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-onerequest}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   server:
-    # Constrói a partir da pasta atual ('.')
     build: .
-    # O comando para rodar (agora funciona, pois server.py está na raiz)
     command: python server.py
     ports:
-      - "5000:5000" # Mapeia a porta (PC : Contêiner)
+      - "5000:5000"
     volumes:
-      # Mapeia TODO o projeto para o /app
-      # Qualquer mudança local será refletida no contêiner
       - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-onerequest}:${POSTGRES_PASSWORD:-senha_segura}@db:5432/${POSTGRES_DB:-onerequest}
     restart: unless-stopped
+
+volumes:
+  pgdata:

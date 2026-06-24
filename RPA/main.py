@@ -7,7 +7,11 @@ from observability import install_print_logger, log_event, push_robot_metrics
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
-from bd import database
+
+from dotenv import load_dotenv
+load_dotenv(os.path.join(project_root, '.env'))
+
+from RPA import api_client as database
 
 logger = install_print_logger("robo-detalhes")
 

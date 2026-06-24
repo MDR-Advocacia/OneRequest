@@ -10,7 +10,9 @@ Jinja2==3.1.6
 MarkupSafe==3.0.2
 openpyxl==3.1.5
 playwright==1.55.0
+psycopg2-binary==2.9.10
 pyee==13.0.0
+python-dotenv==1.1.0
 schedule==1.2.2
 typing_extensions==4.15.0
 waitress==3.0.2

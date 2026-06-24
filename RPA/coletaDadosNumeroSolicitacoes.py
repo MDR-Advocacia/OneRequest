@@ -13,7 +13,10 @@ import re
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
 
-from bd import database
+from dotenv import load_dotenv
+load_dotenv(os.path.join(project_root, '.env'))
+
+from RPA import api_client as database
 from portal_bb import fazer_login
 from observability import install_print_logger
 
@@ -325,23 +328,10 @@ def main():
 
             numeros_atuais_portal = coletar_numeros_com_recuperacao(portal_page)
 
-            # --- Lógica de Sincronização ---
-            print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
-            numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
-
-            # 1. Encontra as que foram respondidas
-            respondidas = list(numeros_abertos_db - numeros_atuais_portal)
-            if respondidas:
-                database.marcar_como_respondidas(respondidas)
-                print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
-
-            # 2. Insere as novas
-            database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
-            print(f"✅ Novas solicitações (se houver) inseridas no banco de dados.")
-            
-            # 3. Garante que TODAS as ativas estejam como 'Aberto'
-            database.marcar_como_abertas(list(numeros_atuais_portal))
-            print(f"✅ Status de {len(numeros_atuais_portal)} solicitações do portal sincronizado para 'Aberto'.")
+            # --- Sincronização via API ---
+            print("\n[🔄] Sincronizando status das solicitações com o servidor...")
+            resultado = database.sincronizar_portal(numeros_atuais_portal)
+            print(f"✅ Sincronização concluída: {resultado.get('respondidas', 0)} marcadas como respondidas, {resultado.get('total_portal', 0)} ativas no portal.")
             
     except Exception as e:
         exit_code = 1
