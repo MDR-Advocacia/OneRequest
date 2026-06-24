@@ -18,6 +18,27 @@ ACCESS_ERROR_SECURITY_HINTS = ("identificador de seguranca", "identificador de s
 SESSION_COOKIE_NAMES = ("JSESSIONID",)
 JURIDICO_COOKIE_DOMAINS = ("juridico.bb.com.br", ".juridico.bb.com.br")
 JURIDICO_COOKIE_PATHS = ("/", "/wfj", "/paj", "/paj/", "/wfj/")
+PROCESSO_AUSENTE_API = "Consulta pendente (API sem numero_processo)"
+CNJ_PATTERN = re.compile(r"(?<!\d)(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\d{20})(?!\d)")
+
+DETALHE_HEADER_SELECTOR = 'h2.left:has-text("Solicitação : Detalhamento")'
+# Trechos que identificam a pagina de erro "Acesso nao autorizado" (advogado nao cadastrado).
+# Comparados sempre em minusculas; basta um deles aparecer para classificar como erro permanente.
+ACESSO_NEGADO_HINTS = (
+    "acesso não autorizado",
+    "acesso nao autorizado",
+    "advogado terceirizado não cadastrado",
+    "advogado terceirizado nao cadastrado",
+    "não cadastrado no portal",
+    "nao cadastrado no portal",
+)
+
+
+class AcessoNaoAutorizadoError(Exception):
+    """Erro permanente: a solicitacao nao pode ser detalhada (advogado nao cadastrado no portal).
+
+    Diferente de um timeout, repetir nao adianta - a solicitacao deve ser marcada e pulada.
+    """
 
 USER_ENV_KEYS = ("BB_USUARIO", "BB_USERNAME", "PORTAL_BB_USUARIO", "PORTAL_BB_USERNAME")
 PASSWORD_ENV_KEYS = ("BB_SENHA", "BB_PASSWORD", "PORTAL_BB_SENHA", "PORTAL_BB_PASSWORD")
@@ -485,16 +506,72 @@ def fazer_login(context) -> Page:
     return fazer_login_direto(context)
 
 
+def normalizar_numero_processo(numero: str) -> str:
+    return re.sub(r"\D", "", numero or "")
+
+
+def extrair_numero_processo_de_texto(texto: str) -> str:
+    match = CNJ_PATTERN.search(texto or "")
+    if not match:
+        return ""
+    return normalizar_numero_processo(match.group(1))
+
+
+def numero_processo_precisa_fallback(numero_processo: str) -> bool:
+    valor = (numero_processo or "").strip().lower()
+    if not valor:
+        return True
+    return (
+        valor == "dado ausente na api"
+        or valor.startswith("consulta pendente")
+        or valor.startswith("processo não encontrado")
+        or valor.startswith("processo nao encontrado")
+        or valor.startswith("erro na api")
+    )
+
+
+def procurar_numero_processo_em_payload(valor) -> str:
+    if isinstance(valor, dict):
+        for chave_preferida in (
+            "textoNumeroInventario",
+            "textoNumeroExternoProcesso",
+            "numeroProcesso",
+            "numeroProcessoFormatado",
+            "textoNumeroProcesso",
+        ):
+            numero = extrair_numero_processo_de_texto(str(valor.get(chave_preferida) or ""))
+            if numero:
+                return numero
+
+        for item in valor.values():
+            numero = procurar_numero_processo_em_payload(item)
+            if numero:
+                return numero
+
+    if isinstance(valor, list):
+        for item in valor:
+            numero = procurar_numero_processo_em_payload(item)
+            if numero:
+                return numero
+
+    if isinstance(valor, str):
+        return extrair_numero_processo_de_texto(valor)
+
+    return ""
+
+
 def extrair_dados_processo_api(api_data: dict) -> tuple[str, str, bool]:
     dados = api_data.get("data", {})
-    numero_processo = (
-        dados.get("textoNumeroInventario")
-        or dados.get("textoNumeroExternoProcesso")
-        or "Dado ausente na API"
-    )
+    numero_processo = procurar_numero_processo_em_payload(dados)
     polo_indicador = dados.get("indicadorPoloBanco", "")
     polo_map = {"A": "Ativo", "P": "Passivo", "N": "Neutro"}
-    return numero_processo, polo_map.get(polo_indicador, "Não definido"), False
+
+    if numero_processo:
+        return numero_processo, polo_map.get(polo_indicador, "Não definido"), False
+
+    chaves_data = ", ".join(sorted(dados.keys())) if isinstance(dados, dict) else type(dados).__name__
+    print(f"    - API respondeu 200, mas sem número de processo. Chaves em data: {chaves_data}")
+    return PROCESSO_AUSENTE_API, "Pendente", True
 
 
 def dados_processo_por_status(status: int, api_data: dict | None = None) -> tuple[str, str, bool]:
@@ -588,12 +665,58 @@ def consultar_dados_processo(page: Page, npj_limpo: str) -> tuple[str, str, bool
     return consultar_dados_processo_no_navegador(page, api_url)
 
 
+def pagina_acesso_negado(page: Page) -> bool:
+    """Detecta a tela de 'Acesso nao autorizado / advogado nao cadastrado'."""
+    try:
+        texto = page.locator("body").inner_text(timeout=800).strip().lower()
+    except Exception:
+        return False
+    if not texto:
+        return False
+    return any(hint in texto for hint in ACESSO_NEGADO_HINTS)
+
+
+def aguardar_pagina_detalhe(page: Page, timeout_ms: int):
+    """Aguarda o cabecalho de detalhamento OU detecta a pagina de acesso negado.
+
+    Faz polling para retornar assim que QUALQUER um dos dois ocorrer, em vez de
+    esperar o timeout inteiro quando a solicitacao cai na pagina de erro permanente.
+    """
+    deadline = time.monotonic() + (timeout_ms / 1000)
+    header = page.locator(DETALHE_HEADER_SELECTOR).first
+    while time.monotonic() < deadline:
+        try:
+            if header.is_visible():
+                return
+        except Exception:
+            pass
+        if pagina_acesso_negado(page):
+            raise AcessoNaoAutorizadoError(
+                "Acesso não autorizado: advogado terceirizado não cadastrado no portal."
+            )
+        time.sleep(0.4)
+
+    # Ultima verificacao antes de desistir (a pagina pode ter mudado no limite do prazo).
+    try:
+        if header.is_visible():
+            return
+    except Exception:
+        pass
+    if pagina_acesso_negado(page):
+        raise AcessoNaoAutorizadoError(
+            "Acesso não autorizado: advogado terceirizado não cadastrado no portal."
+        )
+    raise TimeoutError(
+        f"Cabeçalho de detalhamento não apareceu em {timeout_ms}ms. URL atual: {page.url}"
+    )
+
+
 def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     """Navega para a página de detalhes e extrai todas as informações."""
     match = re.match(r"(\d{4})\/(\d{10})", numero_solicitacao)
     if not match:
         raise ValueError(f"Formato de número inválido: {numero_solicitacao}")
-    
+
     ano, numero = match.groups()
     url_detalhada = f"https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam?buscaRapidaProcesso=busca_solicitacoes&anoSolicitacaoBuscaRapida={ano}&numeroSolicitacaoBuscaRapida={numero}"
 
@@ -602,10 +725,12 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
         timeout=int(os.getenv("RPA_DETALHE_GOTO_TIMEOUT_MS", "90000")),
         wait_until="domcontentloaded",
     )
-    page.wait_for_selector(
-        'h2.left:has-text("Solicitação : Detalhamento")',
-        timeout=int(os.getenv("RPA_DETALHE_SELECTOR_TIMEOUT_MS", "30000")),
+    aguardar_pagina_detalhe(
+        page,
+        int(os.getenv("RPA_DETALHE_SELECTOR_TIMEOUT_MS", "30000")),
     )
+    texto_pagina_detalhe = texto_pagina(page)
+    numero_processo_portal = extrair_numero_processo_de_texto(texto_pagina_detalhe)
     
     # Extração da página principal
     numero_solicitacao_raw = page.locator('span.info_tarefa_label_numero:has-text("Nº da solicitação:") + span.info_tarefa_numero').inner_text()
@@ -637,12 +762,29 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
 
         try:
             numero_processo, polo, _retry_later = consultar_dados_processo(page, npj_limpo)
+            if numero_processo_precisa_fallback(numero_processo):
+                numero_texto_dmi = extrair_numero_processo_de_texto(texto_dmi)
+                numero_fallback = numero_processo_portal or numero_texto_dmi
+                if numero_fallback:
+                    origem = "página de detalhes" if numero_processo_portal else "texto da DMI"
+                    print(f"    - API sem número de processo útil; CNJ recuperado pela {origem}.")
+                    numero_processo = numero_fallback
+                    if polo in ("Pendente", "N/A"):
+                        polo = "Não definido"
             dados_solicitacao["numero_processo"] = numero_processo
             dados_solicitacao["polo"] = polo
         except Exception as exc:
-            print(f"    - Consulta da API falhou; sera tentada novamente no proximo ciclo: {exc}")
-            dados_solicitacao["numero_processo"] = "Consulta pendente"
-            dados_solicitacao["polo"] = "Pendente"
+            numero_texto_dmi = extrair_numero_processo_de_texto(texto_dmi)
+            numero_fallback = numero_processo_portal or numero_texto_dmi
+            if numero_fallback:
+                origem = "página de detalhes" if numero_processo_portal else "texto da DMI"
+                print(f"    - Consulta da API falhou, mas o CNJ foi recuperado pela {origem}: {exc}")
+                dados_solicitacao["numero_processo"] = numero_fallback
+                dados_solicitacao["polo"] = "Não definido"
+            else:
+                print(f"    - Consulta da API falhou; sera tentada novamente no proximo ciclo: {exc}")
+                dados_solicitacao["numero_processo"] = "Consulta pendente"
+                dados_solicitacao["polo"] = "Pendente"
     else:
         dados_solicitacao["numero_processo"] = "NPJ não informado"
         dados_solicitacao["polo"] = "N/A"

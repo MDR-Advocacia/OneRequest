@@ -1,5 +1,6 @@
 import time
 import subprocess
+import tempfile
 from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, Frame
 import json
@@ -23,6 +24,81 @@ install_print_logger("robo-coleta-numeros")
 # --- CONFIGURAÇÕES OBRIGATÓRIAS ---
 BAT_FILE_PATH = Path(__file__).resolve().parent / "abrir_chrome.bat"
 CDP_ENDPOINT = "http://localhost:9222"
+ASSESSORIA_URL = "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar"
+INFO_REGISTROS_SELECTOR = "div.dataTableNumeroRegistros"
+# Link JSF que gera o relatorio (PDF) com TODAS as solicitacoes de uma vez.
+REPORT_LINK_SELECTOR = "a:has-text('Imprimir Relatório')"
+# No PDF os numeros quebram em 2 linhas (coluna estreita): 'YYYY/NNNNNN' + 'NNNN'.
+# Por isso juntamos os digitos separados por espaco/quebra antes de casar este padrao.
+NUMERO_SOLICITACAO_PDF_PATTERN = re.compile(r"\d{4}/\d{10}")
+
+
+class ErroTecnicoPortal(Exception):
+    pass
+
+
+def pagina_erro_tecnico(page: Page) -> bool:
+    try:
+        if "errodesconhecido.seam" in page.url.lower():
+            return True
+        texto = page.locator("body").inner_text(timeout=1000).lower()
+        return "aconteceu um problema técnico" in texto or "aconteceu um problema tecnico" in texto
+    except Exception:
+        return False
+
+
+def verificar_erro_tecnico(page: Page, contexto: str):
+    if pagina_erro_tecnico(page):
+        raise ErroTecnicoPortal(f"Portal caiu na página de erro técnico durante {contexto}. URL atual: {page.url}")
+
+
+def limpar_cookie_erro_wfj(context):
+    print("    - Limpando somente JSESSIONID do WFJ/raiz...")
+    removidos = 0
+    dominios = ("juridico.bb.com.br", ".juridico.bb.com.br")
+    paths = ("/wfj", "/wfj/", "/")
+
+    try:
+        page = context.pages[0] if context.pages else None
+        cdp = context.new_cdp_session(page) if page else None
+    except Exception:
+        cdp = None
+
+    for dominio in dominios:
+        for path in paths:
+            try:
+                context.clear_cookies(name="JSESSIONID", domain=dominio, path=path)
+                removidos += 1
+                continue
+            except TypeError:
+                pass
+            except Exception:
+                pass
+
+            if cdp:
+                try:
+                    cdp.send("Network.deleteCookies", {"name": "JSESSIONID", "domain": dominio, "path": path})
+                    removidos += 1
+                except Exception:
+                    pass
+
+    print(f"✅ Limpeza seletiva WFJ finalizada ({removidos} remoções solicitadas).")
+
+
+def obter_total_registros(frame) -> int | None:
+    try:
+        texto = frame.locator(INFO_REGISTROS_SELECTOR).first.inner_text(timeout=3000)
+    except Exception:
+        return None
+
+    match = re.search(r"total\s*de\s*(\d+)", texto.lower())
+    if not match:
+        print(f"⚠️ Não foi possível identificar o total no contador: {texto!r}")
+        return None
+
+    total = int(match.group(1))
+    print(f"📊 Total informado pelo portal: {total} registros.")
+    return total
 
 def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
     """
@@ -30,10 +106,11 @@ def acessar_assessoria_e_encontrar_frame(page: Page) -> Frame:
     """
     print("[🔁] Acessando seção 'Assessoria - Visão Advogado'...")
     page.goto(
-        "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/listarPendenciaTarefa/listar",
+        ASSESSORIA_URL,
         timeout=90000,
         wait_until="domcontentloaded"
     )
+    verificar_erro_tecnico(page, "acesso à tela de assessoria")
 
     print("    - Procurando pelo frame que contém o botão de pesquisa...")
     for frame in page.frames:
@@ -52,15 +129,32 @@ def clicar_pesquisar(frame):
     """
     print("[🔍] Clicando no botão 'Pesquisar'...")
     try:
+        verificar_erro_tecnico(frame.page, "pesquisa")
         seletor_botao = "input[type='image'][name='pesquisarPendenciaTarefaForm:btPTarefa']"
 
         print("    - Aguardando o botão de pesquisa...")
         frame.wait_for_selector(seletor_botao, timeout=20000)
 
-        frame.click(seletor_botao)
+        botao_pesquisar = frame.locator(seletor_botao).first
+        try:
+            botao_pesquisar.click(timeout=10000, no_wait_after=True)
+        except TypeError:
+            botao_pesquisar.click(timeout=10000)
+        except Exception:
+            botao_pesquisar.evaluate(
+                """el => {
+                    const event = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    el.dispatchEvent(event);
+                }"""
+            )
+        verificar_erro_tecnico(frame.page, "clique em Pesquisar")
 
         print("[⏳] Aguardando carregamento dos registros...")
-        frame.wait_for_selector("div.dataTableNumeroRegistros", timeout=20000)
+        frame.wait_for_selector(INFO_REGISTROS_SELECTOR, timeout=20000)
 
         print("[✅] Registros carregados com sucesso.")
         return True
@@ -68,153 +162,131 @@ def clicar_pesquisar(frame):
         print(f"[❌] Falha ao clicar no botão 'Pesquisar': {e}")
         return False
 
-def alterar_registros_por_pagina(frame):
+def extrair_numeros_do_pdf(caminho_pdf: str) -> set:
+    """Extrai os números de solicitação do relatório PDF (Tarefa.pdf).
+
+    No PDF cada número quebra em duas linhas por causa da coluna estreita
+    (ex.: '2026/000006' + '1732'). Juntamos os dígitos separados por espaço/quebra
+    antes de aplicar o padrão YYYY/NNNNNNNNNN.
     """
-    Função para clicar no botão '50' e aguardar o carregamento da página.
-    
-    """
-    print("\n🔢 Verificando paginação...")
+    from pypdf import PdfReader
+
+    reader = PdfReader(caminho_pdf)
+    texto = "\n".join((pagina.extract_text() or "") for pagina in reader.pages)
+    texto_unido = re.sub(r"(?<=\d)\s+(?=\d)", "", texto)
+    numeros = set(NUMERO_SOLICITACAO_PDF_PATTERN.findall(texto_unido))
+    print(f"[📄] Relatório com {len(reader.pages)} página(s); {len(numeros)} números distintos extraídos.")
+    return numeros
+
+
+def baixar_relatorio_e_extrair(frame: Frame, total_esperado=None) -> set:
+    """Clica em 'Imprimir Relatório', captura o PDF e devolve o conjunto de números."""
+    page = frame.page
+    verificar_erro_tecnico(page, "geração do relatório")
+
+    print("[🖨️] Solicitando 'Imprimir Relatório' (PDF com todas as solicitações)...")
+    frame.wait_for_selector(REPORT_LINK_SELECTOR, timeout=20000)
+    link = frame.locator(REPORT_LINK_SELECTOR).first
+
+    download_timeout = int(os.getenv("RPA_RELATORIO_DOWNLOAD_TIMEOUT_MS", "120000"))
+    with page.expect_download(timeout=download_timeout) as download_info:
+        try:
+            link.click(no_wait_after=True)
+        except Exception:
+            link.evaluate("el => el.click()")
+    download = download_info.value
+
+    destino = Path(tempfile.gettempdir()) / f"onerequest_tarefa_{os.getpid()}.pdf"
+    download.save_as(str(destino))
+    print(f"[✅] Relatório baixado: {download.suggested_filename}")
 
     try:
-        seletor_50 = 'a.dr-dscr-button:has-text("50")'
-        seletor_info = "div.dataTableNumeroRegistros"
-        seletor_linhas = 'tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr'
-
-        # 1. Verifica se o botão '50' está visível. Se não estiver (ex: só tem 5 registros), segue o fluxo.
-        botao_50 = frame.locator(seletor_50).first
-        if not botao_50.is_visible(timeout=3000):
-            print("⚠️ Botão '50' não encontrado ou não necessário (poucos registros). Mantendo paginação atual.")
-            return True
-
-        # Captura o texto atual antes de clicar para garantir que mudou depois (opcional, mas robusto)
+        numeros = extrair_numeros_do_pdf(str(destino))
+    finally:
         try:
-            texto_inicial = frame.locator(seletor_info).first.inner_text(timeout=2000).strip()
+            destino.unlink()
         except Exception:
-            texto_inicial = ""
+            pass
 
+    if not numeros:
+        raise RuntimeError("Relatório baixado, mas nenhum número de solicitação foi extraído do PDF.")
+
+    if total_esperado:
+        if len(numeros) < total_esperado:
+            raise RuntimeError(
+                f"Relatório incompleto: {len(numeros)} números extraídos de "
+                f"{total_esperado} informados pelo portal."
+            )
+        print(f"[✔️] Validação OK: {len(numeros)}/{total_esperado} (contador do portal).")
+
+    print(f"✅ Coleta concluída. {len(numeros)} solicitações ativas encontradas no portal.")
+    return numeros
+
+
+def preparar_e_baixar_relatorio(portal_page: Page) -> set:
+    tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
+    if not tarefa_frame:
+        raise RuntimeError("Não foi possível encontrar o frame de pesquisa.")
+
+    if not clicar_pesquisar(tarefa_frame):
+        raise RuntimeError("Não foi possível realizar a pesquisa.")
+
+    # Recupera a referência do frame: o postback do Pesquisar pode tê-lo recriado.
+    tarefa_frame = acessar_frame_existente(portal_page) or tarefa_frame
+
+    total_esperado = obter_total_registros(tarefa_frame)
+    return baixar_relatorio_e_extrair(tarefa_frame, total_esperado=total_esperado)
+
+
+def acessar_frame_existente(page: Page) -> Frame | None:
+    """Reobtém o frame que contém o form de pendências (sem renavegar)."""
+    for frame in page.frames:
         try:
-            qtd_linhas_inicial = frame.locator(seletor_linhas).count()
+            if "pesquisarPendenciaTarefaForm" in frame.content():
+                return frame
         except Exception:
-            qtd_linhas_inicial = 0
-
-        print("🖱️  Clicando no botão '50' para expandir registros...")
-        botao_50.click(timeout=10000)
-        
-        print("[⏳] Aguardando atualização da tabela...")
-
-        for _ in range(30): # Tenta por até 15 segundos (30 * 0.5s)
-            texto_atual = ""
-            try:
-                texto_atual = frame.locator(seletor_info).first.inner_text(timeout=1000).strip()
-            except Exception:
-                pass
-
-            if texto_atual and texto_atual != texto_inicial and texto_atual.startswith("1-"):
-                print(f"✅ Paginação atualizada com sucesso. Exibindo: {texto_atual}")
-                return True
-
-            try:
-                qtd_linhas_atual = frame.locator(seletor_linhas).count()
-                if qtd_linhas_atual > qtd_linhas_inicial or qtd_linhas_atual >= 50:
-                    print(f"✅ Paginação atualizada com sucesso. Linhas visíveis: {qtd_linhas_atual}")
-                    return True
-            except Exception:
-                pass
-
-            time.sleep(0.5)
-        
-        try:
-            qtd_linhas_atual = frame.locator(seletor_linhas).count()
-        except Exception:
-            qtd_linhas_atual = 0
-
-        if qtd_linhas_atual > 0:
-            print(f"⚠️ Aviso: não foi possível confirmar a paginação pelo contador, mas há {qtd_linhas_atual} linhas. Prosseguindo.")
-            return True
-
-        print("❌ Não foi possível confirmar a atualização da paginação nem localizar linhas na tabela.")
-        return False
-
-    except Exception as e:
-        print(f"[❌] Falha não bloqueante ao alterar paginação: {e}")
-        # Retornamos True ou False dependendo se você quer que o robô pare. 
-        # Geralmente, falha na paginação não deve parar o robô se ele ainda conseguir ler a página 1.
-        return False
-
-def encontrar_botao_proxima_pagina(frame):
-    """
-    Localiza o botão de próxima página (seta para a direita).
-    """
-    try:
-        botao_proximo = frame.locator('a.mi--chevron-right')
-        if botao_proximo.is_visible() and botao_proximo.is_enabled():
-            return botao_proximo
-    except Exception:
-        pass
-    
+            continue
     return None
 
-def extrair_todos_numeros_solicitacoes(frame):
-    """
-    Extrai todos os números de solicitação de todas as páginas da tabela.
-    """
-    print("\n📋 Extraindo números das solicitações da tabela...")
-    todos_numeros = set()
-    pagina_atual = 1
-    
-    while True:
-        print(f"[📄] Lendo página {pagina_atual}...")
-        
-        linhas = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').all()
-        
-        if not linhas:
-            print("[⚠️] Nenhuma linha encontrada. Fim da extração.")
-            break
-            
-        for linha in linhas:
+
+def coletar_numeros_com_recuperacao(portal_page: Page):
+    max_recuperacoes = int(os.getenv("RPA_COLETA_NUMEROS_MAX_RECUPERACOES", "5"))
+    ultimo_erro = None
+
+    for tentativa in range(1, max_recuperacoes + 1):
+        try:
+            if tentativa > 1:
+                print(f"\n[🔁] Retomando coleta ({tentativa}/{max_recuperacoes})...")
+            return preparar_e_baixar_relatorio(portal_page)
+
+        except ErroTecnicoPortal as exc:
+            ultimo_erro = exc
+            print(f"[⚠️] {exc}")
+            print("    - Limpando cookie problemático e voltando para a lista...")
+            limpar_cookie_erro_wfj(portal_page.context)
+            time.sleep(2)
             try:
-                celula_numero = linha.locator('td').first
-                link_numero = celula_numero.locator('a').first
-                numero = link_numero.inner_text().strip()
-                
-                if numero:
-                    todos_numeros.add(numero)
-                    
-            except Exception as e:
-                print(f"[❌] Erro ao extrair dados da linha: {e}")
+                portal_page.goto(ASSESSORIA_URL, timeout=90000, wait_until="domcontentloaded")
+            except Exception:
+                pass
+            continue
+
+        except Exception as exc:
+            # Falhas transitórias (timeout no Pesquisar, download, etc.): renavega e tenta de novo.
+            ultimo_erro = exc
+            print(f"[⚠️] Falha na coleta (tentativa {tentativa}/{max_recuperacoes}): {exc}")
+            if tentativa < max_recuperacoes:
+                time.sleep(3)
+                try:
+                    portal_page.goto(ASSESSORIA_URL, timeout=90000, wait_until="domcontentloaded")
+                except Exception:
+                    pass
                 continue
-        
-        botao_proximo = encontrar_botao_proxima_pagina(frame)
-        if botao_proximo and botao_proximo.is_visible() and botao_proximo.is_enabled():
-            print(f"[➡️] Passando para a próxima página...")
-            try:
-                primeiro_registro_ref = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
-                
-                botao_proximo.click()
 
-                for _ in range(60): 
-                    time.sleep(0.5)
-                    try:
-                        novo_primeiro_registro = frame.locator('tbody#pesquisarPendenciaTarefaForm\\:dataTable\\:tb tr').first.inner_text()
-                        if novo_primeiro_registro != primeiro_registro_ref:
-                            print("✅ Nova página carregada com sucesso!")
-                            break
-                    except:
-                        continue
-                else:
-                    print("[❌] A página não foi carregada com novos dados. Interrompendo a extração.")
-                    break
-
-                pagina_atual += 1
-            except Exception as e:
-                print(f"[❌] Erro ao avançar para a próxima página: {e}")
-                break
-        else:
-            print("[⏹️] Fim da paginação. Todos os números extraídos.")
-            break
-            
-    print(f"✅ Extração concluída. {len(todos_numeros)} solicitações ativas encontradas no portal.")
-    return list(todos_numeros)
+    raise RuntimeError(
+        f"Não foi possível concluir a coleta de números após {max_recuperacoes} tentativas. "
+        f"Último erro: {ultimo_erro}"
+    )
 
 def main():
     """
@@ -223,6 +295,7 @@ def main():
     database.inicializar_banco()
 
     browser_process = None
+    exit_code = 0
     try:
         print(f"▶️  Executando o script: {BAT_FILE_PATH}")
         browser_process = subprocess.Popen(
@@ -250,41 +323,28 @@ def main():
             context = browser.contexts[0]
             portal_page = fazer_login(context)
 
-            tarefa_frame = acessar_assessoria_e_encontrar_frame(portal_page)
+            numeros_atuais_portal = coletar_numeros_com_recuperacao(portal_page)
+
+            # --- Lógica de Sincronização ---
+            print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
+            numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
+
+            # 1. Encontra as que foram respondidas
+            respondidas = list(numeros_abertos_db - numeros_atuais_portal)
+            if respondidas:
+                database.marcar_como_respondidas(respondidas)
+                print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
+
+            # 2. Insere as novas
+            database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
+            print(f"✅ Novas solicitações (se houver) inseridas no banco de dados.")
             
-            if tarefa_frame:
-                if clicar_pesquisar(tarefa_frame):
-                    
-                    if alterar_registros_por_pagina(tarefa_frame):
-                        
-                        numeros_atuais_portal = set(extrair_todos_numeros_solicitacoes(tarefa_frame))
-                        
-                        # --- Lógica de Sincronização ---
-                        print("\n[🔄] Sincronizando status das solicitações com o banco de dados...")
-                        numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
-
-                        # 1. Encontra as que foram respondidas
-                        respondidas = list(numeros_abertos_db - numeros_atuais_portal)
-                        if respondidas:
-                            database.marcar_como_respondidas(respondidas)
-                            print(f"✅ {len(respondidas)} solicitações foram marcadas como 'Respondido'.")
-
-                        # 2. Insere as novas
-                        database.inserir_novas_solicitacoes(list(numeros_atuais_portal))
-                        print(f"✅ Novas solicitações (se houver) inseridas no banco de dados.")
-                        
-                        # 3. Garante que TODAS as ativas estejam como 'Aberto'
-                        database.marcar_como_abertas(list(numeros_atuais_portal))
-                        print(f"✅ Status de {len(numeros_atuais_portal)} solicitações do portal sincronizado para 'Aberto'.")
-
-                    else:
-                        print("❌ Não foi possível alterar o número de registros por página.")
-                else:
-                    print("❌ Não foi possível realizar a pesquisa. O script será encerrado.")
-            else:
-                print("❌ Não foi possível encontrar o botão de pesquisa. O script será encerrado.")
+            # 3. Garante que TODAS as ativas estejam como 'Aberto'
+            database.marcar_como_abertas(list(numeros_atuais_portal))
+            print(f"✅ Status de {len(numeros_atuais_portal)} solicitações do portal sincronizado para 'Aberto'.")
             
     except Exception as e:
+        exit_code = 1
         print(f"\n========================= ERRO =========================")
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
@@ -324,6 +384,9 @@ def main():
             print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
 
         print("--- Rotina de fechamento concluída. Fim da execução. ---")
+
+    if exit_code:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

@@ -212,6 +212,7 @@ def obter_solicitacoes_pendentes():
            titulo IS NULL
         OR numero_processo IS NULL
         OR numero_processo = ''
+        OR numero_processo = 'Dado ausente na API'
         OR numero_processo LIKE 'Consulta pendente%'
         OR numero_processo LIKE 'Erro na API%'
         OR polo = 'Erro na API'

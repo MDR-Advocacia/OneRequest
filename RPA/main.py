@@ -12,6 +12,29 @@ from bd import database
 logger = install_print_logger("robo-detalhes")
 
 
+def _fechar_paginas_extras(portal_page):
+    """Fecha popups/abas remanescentes, mantendo apenas a aba principal do portal."""
+    for page in list(portal_page.context.pages):
+        if page != portal_page:
+            try:
+                page.close()
+            except Exception:
+                pass
+
+
+def _marcar_acesso_negado(numero):
+    """Registra a solicitacao como 'Acesso nao autorizado' para sair da fila de pendentes."""
+    database.atualizar_detalhes_solicitacao({
+        "numero_solicitacao": numero,
+        "titulo": "Acesso não autorizado",
+        "npj_direcionador": "",
+        "prazo": "",
+        "texto_dmi": "Advogado terceirizado não cadastrado no portal. Contatar a Ajure de relacionamento.",
+        "numero_processo": "Acesso não autorizado",
+        "polo": "N/A",
+    })
+
+
 def processar_com_retentativas(portal_page, numero, max_tentativas, espera_segundos):
     ultimo_erro = None
     for tentativa in range(1, max_tentativas + 1):
@@ -35,6 +58,22 @@ def processar_com_retentativas(portal_page, numero, max_tentativas, espera_segun
                 status="success",
             )
             return True
+        except portal_bb.AcessoNaoAutorizadoError as exc:
+            # Erro permanente: repetir nao resolve. Marca, registra e segue para a proxima.
+            print(f"⛔ {numero}: acesso não autorizado (advogado não cadastrado no portal). Marcando e seguindo.")
+            log_event(
+                logger,
+                f"Acesso não autorizado para a solicitacao: {exc}",
+                solicitacao=numero,
+                attempt=tentativa,
+                status="skipped",
+            )
+            try:
+                _marcar_acesso_negado(numero)
+            except Exception as db_exc:
+                print(f"    ⚠️ Falha ao marcar acesso negado de {numero}: {db_exc}")
+            _fechar_paginas_extras(portal_page)
+            return False
         except Exception as exc:
             ultimo_erro = exc
             log_event(
@@ -47,12 +86,7 @@ def processar_com_retentativas(portal_page, numero, max_tentativas, espera_segun
             if tentativa < max_tentativas:
                 print(f"⚠️ Tentativa {tentativa}/{max_tentativas} falhou para {numero}: {exc}")
                 print(f"    - Aguardando {espera_segundos}s antes de tentar novamente...")
-                for page in list(portal_page.context.pages):
-                    if page != portal_page:
-                        try:
-                            page.close()
-                        except Exception:
-                            pass
+                _fechar_paginas_extras(portal_page)
                 time.sleep(espera_segundos)
                 continue
             print(f"❌ Erro ao processar {numero} após {max_tentativas} tentativas: {ultimo_erro}")
