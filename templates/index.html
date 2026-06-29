@@ -112,7 +112,8 @@
                 {% for item in solicitacoes %}
                 <tr data-id="{{ item['numero_solicitacao'] }}"
                     data-texto-dmi="{{ item['texto_dmi'] }}"
-                    data-recebido="{{ item['recebido_em'] }}">
+                    data-recebido="{{ item['recebido_em'] }}"
+                    data-dataportal="{{ item['data_portal'] if item['data_portal'] else '' }}">
                     
                     <td class="text-center">
                         <span class="farol farol-{{ item['farol_status'] }}"></span>
@@ -201,6 +202,10 @@
             <div style="font-size: 0.95rem; color: #a0a0a0; margin-bottom: 0.5rem;">
                 <i class="bi bi-calendar-event me-2"></i>
                 Recebido em: <span id="modal-recebido-display" style="color: #5bc0de; font-weight: bold;"></span>
+            </div>
+            <div style="font-size: 0.95rem; color: #a0a0a0; margin-bottom: 0.5rem;">
+                <i class="bi bi-calendar-check me-2"></i>
+                Data no portal: <span id="modal-dataportal-display" style="color: #5bc0de; font-weight: bold;"></span>
             </div>
 
             <textarea id="modal-texto-dmi" class="modal-text-area" readonly style="height: 400px;"></textarea>
@@ -346,6 +351,7 @@
         const modalTextoDMI = document.getElementById('modal-texto-dmi');
         const modalTitle = document.getElementById('modal-title');
         const modalRecebidoDisplay = document.getElementById('modal-recebido-display'); // Novo elemento
+        const modalDataPortalDisplay = document.getElementById('modal-dataportal-display');
 
         document.querySelectorAll('.details-btn').forEach(button => {
             button.addEventListener('click', () => {
@@ -356,7 +362,10 @@
                 // Pega a data do atributo data-recebido e formata
                 const dataRecebidoRaw = row.dataset.recebido || '';
                 modalRecebidoDisplay.textContent = formatarDataHora(dataRecebidoRaw);
-                
+
+                // Data da solicitacao no portal (ja vem como DD/MM/AAAA)
+                modalDataPortalDisplay.textContent = row.dataset.dataportal || '-';
+
                 modalTextoDMI.value = row.dataset.textoDmi || 'Nenhum texto DMI encontrado.';
                 detailsModalOverlay.classList.add('active');
             });

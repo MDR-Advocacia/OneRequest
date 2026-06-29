@@ -9,6 +9,7 @@
         <thead>
             <tr>
                 <th class="col-recebido">Recebido Em</th>
+                <th class="col-recebido">Data no Portal</th>
                 <th class="col-solicitacao">Nº Solicitação</th>
                 <th class="col-processo">Nº Processo</th>
                 <th class="col-prazo">Prazo</th>
@@ -24,6 +25,7 @@
                 {% for item in solicitacoes %}
                 <tr>
                     <td>{{ item['recebido_em'] }}</td>
+                    <td>{{ item['data_portal'] if item['data_portal'] else '-' }}</td>
                     <td>{{ item['numero_solicitacao'] }}</td>
                     <td>{{ item['numero_processo'] }}</td>
                     <td>{{ item['prazo'] }}</td>
@@ -36,7 +38,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="9" class="no-data">Nenhuma solicitação foi respondida ainda.</td>
+                    <td colspan="10" class="no-data">Nenhuma solicitação foi respondida ainda.</td>
                 </tr>
             {% endif %}
         </tbody>

@@ -81,9 +81,12 @@ def inicializar_banco():
             status TEXT DEFAULT 'Não',
             setor TEXT DEFAULT 'N/A',
             data_agendamento TEXT DEFAULT '',
-            status_sistema TEXT DEFAULT 'Aberto' NOT NULL
+            status_sistema TEXT DEFAULT 'Aberto' NOT NULL,
+            data_portal TEXT
         );
         """)
+        # Coluna data_portal (data da solicitacao no portal) para bancos ja existentes.
+        cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS data_portal TEXT;")
         cur.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -146,7 +149,8 @@ def atualizar_detalhes_solicitacao(dados_solicitacao):
         cur.execute("""
         UPDATE solicitacoes
         SET titulo = %s, npj_direcionador = %s, prazo = %s,
-            texto_dmi = %s, numero_processo = %s, polo = %s
+            texto_dmi = %s, numero_processo = %s, polo = %s,
+            data_portal = COALESCE(%s, data_portal)
         WHERE numero_solicitacao = %s
         """, (
             dados_solicitacao.get("titulo"),
@@ -155,6 +159,7 @@ def atualizar_detalhes_solicitacao(dados_solicitacao):
             dados_solicitacao.get("texto_dmi"),
             dados_solicitacao.get("numero_processo"),
             dados_solicitacao.get("polo"),
+            dados_solicitacao.get("data_portal") or None,
             dados_solicitacao.get("numero_solicitacao"),
         ))
 

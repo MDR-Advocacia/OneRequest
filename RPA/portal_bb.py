@@ -20,6 +20,8 @@ JURIDICO_COOKIE_DOMAINS = ("juridico.bb.com.br", ".juridico.bb.com.br")
 JURIDICO_COOKIE_PATHS = ("/", "/wfj", "/paj", "/paj/", "/wfj/")
 PROCESSO_AUSENTE_API = "Consulta pendente (API sem numero_processo)"
 CNJ_PATTERN = re.compile(r"(?<!\d)(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\d{20})(?!\d)")
+# Data da solicitacao no portal, no texto da DMI: "..., de DD/MM/AAAA".
+DATA_PORTAL_PATTERN = re.compile(r",\s*de\s+(\d{2}/\d{2}/\d{4})")
 
 DETALHE_HEADER_SELECTOR = 'h2.left:has-text("Solicitação : Detalhamento")'
 # Trechos que identificam a pagina de erro "Acesso nao autorizado" (advogado nao cadastrado).
@@ -753,6 +755,9 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     popup_page = abrir_popup_dmi(page)
     texto_dmi = popup_page.locator("div.print").first.inner_text()
     dados_solicitacao["texto_dmi"] = texto_dmi.strip()
+    # Data da solicitacao no portal (ex.: "Solicitacao DMI ... 2026/0000295621, de 26/06/2026").
+    match_data_portal = DATA_PORTAL_PATTERN.search(texto_dmi)
+    dados_solicitacao["data_portal"] = match_data_portal.group(1) if match_data_portal else ""
     popup_page.close()
 
     # Lógica de API atualizada
