@@ -1,6 +1,15 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from contextlib import contextmanager
+
+# Fuso de Brasilia para carimbar recebido_em corretamente, independente do
+# fuso do servidor (o container roda em UTC). Usa zoneinfo quando disponivel;
+# caso contrario, cai para UTC-3 fixo (Brasil nao observa horario de verao).
+try:
+    from zoneinfo import ZoneInfo
+    TZ_BR = ZoneInfo("America/Sao_Paulo")
+except Exception:
+    TZ_BR = timezone(timedelta(hours=-3))
 from werkzeug.security import generate_password_hash
 from flask_login import UserMixin
 import psycopg2
@@ -135,7 +144,7 @@ def marcar_como_abertas(numeros_solicitacao):
 def inserir_novas_solicitacoes(numeros_solicitacao):
     if not numeros_solicitacao:
         return
-    timestamp_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp_atual = datetime.now(TZ_BR).strftime('%Y-%m-%d %H:%M:%S')
     with _get_cursor() as cur:
         for numero in numeros_solicitacao:
             cur.execute(
