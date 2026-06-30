@@ -19,6 +19,7 @@ load_dotenv(os.path.join(project_root, '.env'))
 from RPA import api_client as database
 from portal_bb import fazer_login
 from observability import install_print_logger
+from lock_chrome import LockChrome
 
 install_print_logger("robo-coleta-numeros")
 
@@ -299,7 +300,10 @@ def main():
 
     browser_process = None
     exit_code = 0
+    lock = LockChrome()
     try:
+        # Uso exclusivo do Chrome: aguarda caso outro robo esteja usando (evita conflito na porta 9222).
+        lock.acquire()
         print(f"▶️  Executando o script: {BAT_FILE_PATH}")
         browser_process = subprocess.Popen(
             str(BAT_FILE_PATH), 
@@ -373,6 +377,8 @@ def main():
         except Exception as e_kill:
             print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
 
+        # Libera o lock para o proximo robo, sempre.
+        lock.release()
         print("--- Rotina de fechamento concluída. Fim da execução. ---")
 
     if exit_code:
