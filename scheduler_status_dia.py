@@ -13,7 +13,7 @@ logger = install_print_logger("scheduler-status-dia")
 
 # Janela de execucao (horario local de Brasilia). Roda de hora em hora nesse intervalo.
 HORA_INICIO = int(os.getenv("RPA_STATUS_HORA_INICIO", "12"))  # a partir do meio-dia
-HORA_FIM = int(os.getenv("RPA_STATUS_HORA_FIM", "18"))
+HORA_FIM = int(os.getenv("RPA_STATUS_HORA_FIM", "23"))        # ate as 23h (cobre ate a meia-noite)
 
 
 def executar_robo_status():
