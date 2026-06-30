@@ -529,6 +529,21 @@ def rpa_atualizar_detalhes():
     database.atualizar_detalhes_solicitacao(dados)
     return jsonify({'status': 'sucesso'})
 
+@app.route('/api/rpa/solicitacoes/vencem-hoje', methods=['GET'])
+@rpa_auth_required
+def rpa_obter_vencem_hoje():
+    return jsonify({'numeros': database.obter_solicitacoes_vencem_hoje()})
+
+@app.route('/api/rpa/solicitacoes/status-portal', methods=['PUT'])
+@rpa_auth_required
+def rpa_atualizar_status_portal():
+    dados = request.json
+    numero = dados.get('numero_solicitacao')
+    if not numero:
+        return jsonify({'status': 'erro', 'mensagem': 'numero_solicitacao é obrigatório.'}), 400
+    database.atualizar_status_portal(numero, dados.get('status_portal'))
+    return jsonify({'status': 'sucesso'})
+
 
 # ============================================================
 # INICIALIZAÇÃO

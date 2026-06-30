@@ -793,5 +793,34 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     else:
         dados_solicitacao["numero_processo"] = "NPJ não informado"
         dados_solicitacao["polo"] = "N/A"
-    
+
     return dados_solicitacao
+
+
+def coletar_status_portal(page: Page, numero_solicitacao: str) -> str:
+    """Navega para a pagina da solicitacao e le o 'Status da solicitacao' (span.status_texto).
+
+    Versao leve de coletar_detalhes: nao abre o popup da DMI nem consulta a API,
+    so extrai o status atual do portal. Reaproveita aguardar_pagina_detalhe, que
+    faz fast-fail na pagina de 'Acesso nao autorizado'.
+    """
+    match = re.match(r"(\d{4})\/(\d{10})", numero_solicitacao)
+    if not match:
+        raise ValueError(f"Formato de número inválido: {numero_solicitacao}")
+
+    ano, numero = match.groups()
+    url = (
+        "https://juridico.bb.com.br/wfj/paginas/negocio/tarefa/pesquisar/buscaRapida.seam"
+        f"?buscaRapidaProcesso=busca_solicitacoes&anoSolicitacaoBuscaRapida={ano}"
+        f"&numeroSolicitacaoBuscaRapida={numero}"
+    )
+    page.goto(
+        url,
+        timeout=int(os.getenv("RPA_DETALHE_GOTO_TIMEOUT_MS", "90000")),
+        wait_until="domcontentloaded",
+    )
+    aguardar_pagina_detalhe(page, int(os.getenv("RPA_DETALHE_SELECTOR_TIMEOUT_MS", "30000")))
+
+    status_locator = page.locator("div.info_status span.status_texto").first
+    status_locator.wait_for(state="visible", timeout=int(os.getenv("RPA_STATUS_TIMEOUT_MS", "15000")))
+    return status_locator.inner_text().strip()

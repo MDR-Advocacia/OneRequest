@@ -104,6 +104,7 @@
                     <th class="col-data-agendamento">Prazo Tarefa</th>
                     <th class="col-anotacao">Anotação</th>
                     <th class="col-status">Status</th>
+                    <th class="col-status">Status Portal</th>
                     <th class="col-acoes">Ações</th>
                 </tr>
             </thead>
@@ -170,6 +171,10 @@
                         </select>
                     </td>
 
+                    <td class="text-center">
+                        {{ item['status_portal'] if item['status_portal'] else '-' }}
+                    </td>
+
                     <td>
                         <div style="display: flex; gap: 5px; justify-content: center;">
                             <button class="action-btn details-btn" title="Ver Detalhes">
@@ -184,7 +189,7 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                    <td colspan="12" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
+                    <td colspan="13" class="no-data">Nenhuma solicitação encontrada para os filtros aplicados.</td>
                 </tr>
                 {% endif %}
             </tbody>

@@ -91,11 +91,13 @@ def inicializar_banco():
             setor TEXT DEFAULT 'N/A',
             data_agendamento TEXT DEFAULT '',
             status_sistema TEXT DEFAULT 'Aberto' NOT NULL,
-            data_portal TEXT
+            data_portal TEXT,
+            status_portal TEXT
         );
         """)
-        # Coluna data_portal (data da solicitacao no portal) para bancos ja existentes.
+        # Colunas adicionadas depois (idempotente) para bancos ja existentes.
         cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS data_portal TEXT;")
+        cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS status_portal TEXT;")
         cur.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -171,6 +173,26 @@ def atualizar_detalhes_solicitacao(dados_solicitacao):
             dados_solicitacao.get("data_portal") or None,
             dados_solicitacao.get("numero_solicitacao"),
         ))
+
+
+def obter_solicitacoes_vencem_hoje():
+    """Numeros das solicitacoes ABERTAS cujo prazo (DD/MM/AAAA) e hoje (fuso de Brasilia)."""
+    hoje = datetime.now(TZ_BR).strftime('%d/%m/%Y')
+    with _get_cursor() as cur:
+        cur.execute(
+            "SELECT numero_solicitacao FROM solicitacoes WHERE status_sistema = 'Aberto' AND prazo = %s",
+            (hoje,)
+        )
+        return [row['numero_solicitacao'] for row in cur.fetchall()]
+
+
+def atualizar_status_portal(numero_solicitacao, status_portal):
+    """Atualiza o status do portal (ex.: 'Em Elaboracao') de uma solicitacao."""
+    with _get_cursor() as cur:
+        cur.execute(
+            "UPDATE solicitacoes SET status_portal = %s WHERE numero_solicitacao = %s",
+            (status_portal, numero_solicitacao)
+        )
 
 
 def obter_solicitacoes_pendentes():

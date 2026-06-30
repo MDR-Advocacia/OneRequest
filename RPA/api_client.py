@@ -58,3 +58,15 @@ def obter_solicitacoes_pendentes():
 
 def atualizar_detalhes_solicitacao(dados_solicitacao):
     return _put('/solicitacoes/detalhes', dados_solicitacao)
+
+
+def obter_solicitacoes_vencem_hoje():
+    data = _get('/solicitacoes/vencem-hoje')
+    return data['numeros']
+
+
+def atualizar_status_portal(numero_solicitacao, status_portal):
+    return _put('/solicitacoes/status-portal', {
+        'numero_solicitacao': numero_solicitacao,
+        'status_portal': status_portal,
+    })
