@@ -209,6 +209,8 @@ def obter_solicitacoes_pendentes():
             OR numero_processo LIKE 'Erro na API%%'
             OR polo = 'Erro na API'
             OR polo = 'Pendente'
+            OR numero_processo = 'Acesso não autorizado'
+            OR titulo = 'Acesso não autorizado'
           );
         """)
         return [row['numero_solicitacao'] for row in cur.fetchall()]
