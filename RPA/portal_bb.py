@@ -500,12 +500,32 @@ def fazer_login(context) -> Page:
     Realiza login no Portal Jurídico.
     Prefere OneLog quando configurado; caso contrário, faz login direto via SSO.
     """
-    if onelog_client.is_configured():
-        print("🔐 OneLog configurado. Usando autenticação via cookies do OneLog.")
-        return fazer_login_onelog(context)
+    if not onelog_client.is_configured():
+        print("🔐 OneLog não configurado. Usando login direto no SSO.")
+        return fazer_login_direto(context)
 
-    print("🔐 OneLog não configurado. Usando login direto no SSO.")
-    return fazer_login_direto(context)
+    print("🔐 OneLog configurado. Usando autenticação via cookies do OneLog.")
+    # O OneLog pode ter falhas intermitentes (ex.: Cloudflare/captcha no login do BB
+    # esvaziando o pool de sessoes). Em vez de perder a rodada inteira na primeira falha,
+    # retenta com backoff: da tempo do OneLog reencher o pool antes de desistir do ciclo.
+    tentativas = int(os.getenv("RPA_ONELOG_LOGIN_TENTATIVAS", "4"))
+    backoff_base = int(os.getenv("RPA_ONELOG_LOGIN_BACKOFF_SEGUNDOS", "15"))
+    ultimo_erro = None
+    for tentativa in range(1, tentativas + 1):
+        try:
+            if tentativa > 1:
+                print(f"    - Nova tentativa de login via OneLog {tentativa}/{tentativas}...")
+            return fazer_login_onelog(context)
+        except Exception as exc:
+            ultimo_erro = exc
+            if tentativa < tentativas:
+                espera = backoff_base * tentativa  # 15s, 30s, 45s...
+                print(f"⚠️ Login via OneLog falhou (tentativa {tentativa}/{tentativas}): {exc}")
+                print(f"    - Aguardando {espera}s antes de retentar (OneLog pode estar reenchendo o pool de sessoes)...")
+                time.sleep(espera)
+    raise RuntimeError(
+        f"Login via OneLog falhou apos {tentativas} tentativas. Ultimo erro: {ultimo_erro}"
+    )
 
 
 def normalizar_numero_processo(numero: str) -> str:
