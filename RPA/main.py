@@ -111,10 +111,12 @@ def run():
         print("✅ Nenhuma solicitação pendente encontrada. Trabalho concluído!")
         log_event(logger, "Robo de detalhes finalizado sem pendencias.", status="success")
         push_robot_metrics("robo-detalhes", "success", duration_seconds=time.monotonic() - inicio, successes=0, failures=0)
-        return
+        return True
+
     print(f"📂 {len(solicitacoes_pendentes)} solicitações pendentes para processar.")
 
     # 3. Inicia o navegador
+    erro_critico = False
     nav = Navegador()
     try:
         nav.iniciar()
@@ -152,6 +154,7 @@ def run():
         )
 
     except Exception as e:
+        erro_critico = True
         print(f"\n========================= ERRO CRÍTICO =========================")
         print(f"Ocorreu uma falha na automação: {e}")
         print(f"================================================================")
@@ -162,5 +165,10 @@ def run():
         print("\n... Fechando o navegador e encerrando o script ...")
         nav.fechar()
 
+    # Sinaliza falha critica (ex.: login/OneLog indisponivel) com codigo de saida != 0,
+    # para o agendador (run_robos.py) decidir retentar em 5 min.
+    return not erro_critico
+
+
 if __name__ == "__main__":
-    run()
+    sys.exit(0 if run() else 1)
