@@ -176,16 +176,20 @@ def atualizar_detalhes_solicitacao(dados_solicitacao):
 
 
 def obter_solicitacoes_vencem_hoje():
-    """Numeros das solicitacoes ABERTAS cujo prazo (DD/MM/AAAA) e hoje OU atrasadas (fuso de Brasilia)."""
-    hoje = datetime.now(TZ_BR).date()
+    """Numeros das solicitacoes ABERTAS cujo prazo (DD/MM/AAAA) e hoje OU atrasadas (fuso de Brasilia).
+
+    Compara sem TO_DATE: filtra apenas prazos no formato DD/MM/YYYY e reformata para
+    YYYY-MM-DD (substr, que nunca lanca erro) para comparar como texto ISO. Assim um
+    prazo malformado e simplesmente ignorado, em vez de derrubar a consulta inteira (500).
+    """
+    hoje_iso = datetime.now(TZ_BR).strftime('%Y-%m-%d')
     with _get_cursor() as cur:
         cur.execute("""
             SELECT numero_solicitacao FROM solicitacoes
             WHERE status_sistema = 'Aberto'
-              AND prazo IS NOT NULL
-              AND prazo != ''
-              AND TO_DATE(prazo, 'DD/MM/YYYY') <= %s
-        """, (hoje,))
+              AND prazo ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
+              AND (substr(prazo, 7, 4) || '-' || substr(prazo, 4, 2) || '-' || substr(prazo, 1, 2)) <= %s
+        """, (hoje_iso,))
         return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
