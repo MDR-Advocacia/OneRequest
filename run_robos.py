@@ -50,15 +50,42 @@ def executar_robo_2():
         return False
 
 
+def executar_robo_status():
+    """Executa o Robô de Status do Dia (status do portal das que vencem hoje/atrasadas). Retorna True em sucesso."""
+    print(f"\n[{datetime.now():%Y-%m-%d %H:%M:%S}] --- INICIANDO ROBO Status do Dia ---")
+    log_event(logger, "Iniciando robo status do dia.", robot="robo-status-dia", status="started")
+    try:
+        subprocess.run([PYTHON_EXE, str(PROJECT_DIR / "RPA" / "coletaStatusDia.py")],
+                       check=True, cwd=PROJECT_DIR)
+        print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] --- ROBO Status do Dia FINALIZADO COM SUCESSO ---")
+        log_event(logger, "Robo status do dia finalizado com sucesso.", robot="robo-status-dia", status="success")
+        return True
+    except Exception as e:
+        print(f"\n!!!!!! ERRO NA EXECUCAO DO ROBO Status do Dia: {e} !!!!!!")
+        log_event(logger, f"Erro na execucao do robo status do dia: {e}", robot="robo-status-dia", status="error")
+        return False
+
+
 def ciclo_completo_de_automacao():
-    """Roda Robô 1 e, se ok, Robô 2. Retorna True apenas se ambos concluirem com sucesso."""
+    """Roda, em sequência, Robô 1 (números), Robô 2 (detalhes) e o Robô de Status do Dia.
+
+    O retry do agendador (a cada 5 min em erro) considera apenas Números+Detalhes;
+    o Status é best-effort e não força o ciclo a repetir.
+    """
     if not executar_robo_1():
-        print("\n[⚠️] Robô 2 não será executado devido a uma falha no Robô 1.")
+        print("\n[⚠️] Robô 2 e Status não serão executados devido a uma falha no Robô 1.")
         return False
 
     print("\n[⏳] Aguardando 20 s antes de iniciar o Robô 2...")
     time.sleep(20)
-    return executar_robo_2()
+    ok_detalhes = executar_robo_2()
+
+    # Robô de Status do Dia — roda em sequência (não simultâneo), best-effort.
+    print("\n[⏳] Aguardando 10 s antes de iniciar o Robô de Status...")
+    time.sleep(10)
+    executar_robo_status()
+
+    return ok_detalhes
 
 
 # --- Agendamento adaptativo ---
