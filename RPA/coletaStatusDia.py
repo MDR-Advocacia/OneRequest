@@ -1,7 +1,7 @@
-"""Robo 'Status do Dia': atualiza o status do portal das solicitacoes que VENCEM HOJE.
+"""Robo 'Status do Dia': atualiza o status do portal das solicitacoes que VENCEM HOJE ou estao ATRASADAS.
 
 A cada execucao:
-  1. Pega as solicitacoes abertas com prazo = hoje (via API /solicitacoes/vencem-hoje).
+  1. Pega as solicitacoes abertas com prazo <= hoje (via API /solicitacoes/vencem-hoje).
   2. Acessa cada uma na buscaRapida.seam e le o 'Status da solicitacao' (span.status_texto).
   3. Grava em status_portal (via API /solicitacoes/status-portal).
 
@@ -79,11 +79,11 @@ def run():
 
     vencem_hoje = database.obter_solicitacoes_vencem_hoje()
     if not vencem_hoje:
-        print("✅ Nenhuma solicitação vencendo hoje. Nada a atualizar.")
+        print("✅ Nenhuma solicitação vencendo hoje ou atrasada. Nada a atualizar.")
         log_event(logger, "Robo de status do dia finalizado sem itens.", status="success")
         push_robot_metrics("robo-status-dia", "success", duration_seconds=time.monotonic() - inicio, successes=0, failures=0)
         return
-    print(f"📂 {len(vencem_hoje)} solicitações vencendo hoje para atualizar o status.")
+    print(f"📂 {len(vencem_hoje)} solicitações (hoje + atrasadas) para atualizar o status.")
 
     nav = Navegador()
     try:

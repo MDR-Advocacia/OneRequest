@@ -176,13 +176,16 @@ def atualizar_detalhes_solicitacao(dados_solicitacao):
 
 
 def obter_solicitacoes_vencem_hoje():
-    """Numeros das solicitacoes ABERTAS cujo prazo (DD/MM/AAAA) e hoje (fuso de Brasilia)."""
-    hoje = datetime.now(TZ_BR).strftime('%d/%m/%Y')
+    """Numeros das solicitacoes ABERTAS cujo prazo (DD/MM/AAAA) e hoje OU atrasadas (fuso de Brasilia)."""
+    hoje = datetime.now(TZ_BR).date()
     with _get_cursor() as cur:
-        cur.execute(
-            "SELECT numero_solicitacao FROM solicitacoes WHERE status_sistema = 'Aberto' AND prazo = %s",
-            (hoje,)
-        )
+        cur.execute("""
+            SELECT numero_solicitacao FROM solicitacoes
+            WHERE status_sistema = 'Aberto'
+              AND prazo IS NOT NULL
+              AND prazo != ''
+              AND TO_DATE(prazo, 'DD/MM/YYYY') <= %s
+        """, (hoje,))
         return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
