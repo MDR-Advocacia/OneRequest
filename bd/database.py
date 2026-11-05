@@ -195,6 +195,24 @@ def obter_solicitacoes_vencem_hoje():
         return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
+def obter_solicitacoes_atrasadas():
+    """Numeros das solicitacoes ABERTAS cujo prazo (DD/MM/AAAA) JA PASSOU (atrasadas), fuso de Brasilia.
+
+    Igual a obter_solicitacoes_vencem_hoje, mas com '<' (estritamente antes de hoje):
+    exclui as que vencem HOJE. Usado para rodar a verificacao de anotacao do portal
+    apenas nas atrasadas.
+    """
+    hoje_iso = datetime.now(TZ_BR).strftime('%Y-%m-%d')
+    with _get_cursor() as cur:
+        cur.execute("""
+            SELECT numero_solicitacao FROM solicitacoes
+            WHERE status_sistema = 'Aberto'
+              AND prazo ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
+              AND (substr(prazo, 7, 4) || '-' || substr(prazo, 4, 2) || '-' || substr(prazo, 1, 2)) < %s
+        """, (hoje_iso,))
+        return [row['numero_solicitacao'] for row in cur.fetchall()]
+
+
 def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_portal=None):
     """Atualiza o status do portal (ex.: 'Em Elaboracao') de uma solicitacao.
 

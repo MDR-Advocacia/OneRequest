@@ -4,6 +4,9 @@ A cada execucao:
   1. Pega as solicitacoes abertas com prazo <= hoje (via API /solicitacoes/vencem-hoje).
   2. Acessa cada uma na buscaRapida.seam e le o 'Status da solicitacao' (span.status_texto).
   3. Grava em status_portal (via API /solicitacoes/status-portal).
+  4. SO nas atrasadas (prazo ja vencido, via API /solicitacoes/atrasadas): verifica se
+     ha anotacao no portal do BB e grava em tem_anotacao_portal (Sim/Nao). As que vencem
+     hoje nao passam por essa verificacao.
 
 Roda localmente (Chrome/Playwright) e fala com a producao pela API REST.
 """
@@ -43,16 +46,26 @@ def _rotulo_anotacao(tem_anotacao):
     return None  # desconhecido -> nao sobrescreve o valor atual
 
 
-def processar_com_retentativas(portal_page, numero, max_tentativas, espera_segundos):
+def processar_com_retentativas(portal_page, numero, max_tentativas, espera_segundos,
+                               verificar_anotacao=False):
     ultimo_erro = None
     for tentativa in range(1, max_tentativas + 1):
         try:
             if tentativa > 1:
                 print(f"    - Nova tentativa {tentativa}/{max_tentativas} para {numero}...")
-            status, tem_anotacao = portal_bb.coletar_status_e_anotacao_portal(portal_page, numero)
-            rotulo_anotacao = _rotulo_anotacao(tem_anotacao)
+            if verificar_anotacao:
+                # Atrasadas: coleta status E verifica se ha anotacao no portal.
+                status, tem_anotacao = portal_bb.coletar_status_e_anotacao_portal(portal_page, numero)
+                rotulo_anotacao = _rotulo_anotacao(tem_anotacao)
+            else:
+                # Vence hoje (ainda nao atrasada): so coleta o status, sem tocar na anotacao.
+                status = portal_bb.coletar_status_portal(portal_page, numero)
+                rotulo_anotacao = None
             database.atualizar_status_portal(numero, status, tem_anotacao_portal=rotulo_anotacao)
-            anotacao_txt = rotulo_anotacao if rotulo_anotacao is not None else "não verificado"
+            if verificar_anotacao:
+                anotacao_txt = rotulo_anotacao if rotulo_anotacao is not None else "não verificado"
+            else:
+                anotacao_txt = "não aplicável (vence hoje)"
             print(f"✅ {numero}: status do portal = '{status}' | anotação no portal = {anotacao_txt}")
             log_event(logger, "Status do portal atualizado.", solicitacao=numero,
                       attempt=tentativa, status="success", status_portal=status,
@@ -95,7 +108,20 @@ def run():
         log_event(logger, "Robo de status do dia finalizado sem itens.", status="success")
         push_robot_metrics("robo-status-dia", "success", duration_seconds=time.monotonic() - inicio, successes=0, failures=0)
         return
-    print(f"📂 {len(vencem_hoje)} solicitações (hoje + atrasadas) para atualizar o status.")
+    # A verificacao de anotacao do portal roda SO nas atrasadas (prazo ja vencido);
+    # as que vencem hoje tem apenas o status coletado. Se o endpoint /atrasadas ainda
+    # nao estiver no ar (ex.: servidor sem o redeploy), degrada com seguranca: pula a
+    # verificacao de anotacao neste ciclo em vez de derrubar o robo.
+    try:
+        atrasadas = set(database.obter_solicitacoes_atrasadas())
+    except Exception as exc:
+        atrasadas = set()
+        print(f"⚠️ Não foi possível obter a lista de atrasadas ({exc}). "
+              f"Verificação de anotação será pulada neste ciclo.")
+        log_event(logger, f"Falha ao obter atrasadas; anotacao pulada: {exc}", status="warning")
+    print(f"📂 {len(vencem_hoje)} solicitações para atualizar o status "
+          f"({len(atrasadas)} atrasadas com verificação de anotação + "
+          f"{len(vencem_hoje) - len(atrasadas)} vencendo hoje).")
 
     nav = Navegador()
     try:
@@ -108,8 +134,11 @@ def run():
         sucessos = 0
         falhas = 0
         for i, numero in enumerate(vencem_hoje):
-            print(f"\n[🔄] Processando {i+1}/{total}: {numero}")
-            if processar_com_retentativas(portal_page, numero, max_tentativas, espera_segundos):
+            eh_atrasada = numero in atrasadas
+            marcador = "atrasada" if eh_atrasada else "vence hoje"
+            print(f"\n[🔄] Processando {i+1}/{total}: {numero} ({marcador})")
+            if processar_com_retentativas(portal_page, numero, max_tentativas, espera_segundos,
+                                          verificar_anotacao=eh_atrasada):
                 sucessos += 1
             else:
                 falhas += 1

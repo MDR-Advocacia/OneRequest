@@ -534,6 +534,11 @@ def rpa_atualizar_detalhes():
 def rpa_obter_vencem_hoje():
     return jsonify({'numeros': database.obter_solicitacoes_vencem_hoje()})
 
+@app.route('/api/rpa/solicitacoes/atrasadas', methods=['GET'])
+@rpa_auth_required
+def rpa_obter_atrasadas():
+    return jsonify({'numeros': database.obter_solicitacoes_atrasadas()})
+
 @app.route('/api/rpa/solicitacoes/status-portal', methods=['PUT'])
 @rpa_auth_required
 def rpa_atualizar_status_portal():

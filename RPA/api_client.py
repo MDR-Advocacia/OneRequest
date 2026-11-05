@@ -65,6 +65,11 @@ def obter_solicitacoes_vencem_hoje():
     return data['numeros']
 
 
+def obter_solicitacoes_atrasadas():
+    data = _get('/solicitacoes/atrasadas')
+    return data['numeros']
+
+
 def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_portal=None):
     payload = {
         'numero_solicitacao': numero_solicitacao,
