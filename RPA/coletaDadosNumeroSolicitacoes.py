@@ -19,7 +19,7 @@ load_dotenv(os.path.join(project_root, '.env'))
 from RPA import api_client as database
 from portal_bb import fazer_login
 from observability import install_print_logger
-from lock_chrome import LockChrome
+from lock_chrome import LockChrome, matar_chrome_robo
 
 install_print_logger("robo-coleta-numeros")
 
@@ -346,36 +346,10 @@ def main():
         # --- BLOCO FINALLY CORRIGIDO ---
         # Este bloco agora executa a mesma lógica do nav.fechar()
         print("\n... Iniciando rotina de fechamento do navegador ...")
-
-        # O 'with sync_playwright()' já cuida de fechar a conexão do Playwright.
-        # Nós só precisamos matar o processo do Chrome pela porta 9222.
-        
-        print("     Procurando e finalizando o processo do Chrome na porta 9222...")
-        try:
-            if sys.platform == "win32":
-                cmd_find_pid = "netstat -ano -p TCP | findstr :9222"
-                result = subprocess.run(cmd_find_pid, shell=True, capture_output=True, text=True, check=False)
-                output = result.stdout.strip()
-
-                if not output:
-                    print("     Nenhum processo encontrado na porta 9222.")
-                else:
-                    pid_match = re.search(r'(\d+)$', output.splitlines()[0])
-                    
-                    if pid_match:
-                        pid = pid_match.group(1)
-                        print(f"     Encontrado processo (PID: {pid}) na porta 9222. Finalizando...")
-                        subprocess.run(f"TASKKILL /F /PID {pid} /T", shell=True, check=False, capture_output=True)
-                        print(f"🏁 Processo {pid} (Chrome) finalizado.")
-                    else:
-                        print(f"     Não foi possível extrair o PID da saída do netstat: {output}")
-            else:
-                # Lógica para Linux/Mac
-                subprocess.run("lsof -t -i:9222 | xargs kill -9", shell=True, check=False, capture_output=True)
-                print("     Comando de finalização (Linux/Mac) executado.")
-
-        except Exception as e_kill:
-            print(f"     Aviso: Falha ao tentar finalizar o processo da porta 9222: {e_kill}")
+        # Encerra TODO o Chrome do robo (todos os processos do perfil), nao so o da porta 9222,
+        # para nao sobrar janela aberta apos o ciclo.
+        print("     Encerrando o Chrome do robô (todos os processos do perfil)...")
+        matar_chrome_robo()
 
         # Libera o lock para o proximo robo, sempre.
         lock.release()

@@ -92,3 +92,42 @@ class LockChrome:
     def __exit__(self, *exc):
         self.release()
         return False
+
+
+def matar_chrome_robo(porta=9222, perfil="chrome-perfil"):
+    """Encerra TODOS os processos chrome.exe do ROBO, nao so o que escuta a porta.
+
+    Identifica pela flag de depuracao (--remote-debugging-port=<porta>, no processo
+    principal) OU pelo perfil dedicado (--user-data-dir=...<perfil>..., presente tambem
+    nos processos filhos). Assim nao sobra Chrome aberto apos o ciclo. NAO afeta o Chrome
+    pessoal do usuario, que usa outro perfil e nao tem a porta de depuracao.
+    """
+    if sys.platform != "win32":
+        subprocess.run(f"pkill -f 'remote-debugging-port={porta}'", shell=True, capture_output=True)
+        return
+
+    ps = (
+        "$alvo = Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | "
+        "Where-Object { $_.CommandLine -like '*remote-debugging-port=" + str(porta) + "*' "
+        "-or $_.CommandLine -like '*" + perfil + "*' }; "
+        "$alvo | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }; "
+        "($alvo | Measure-Object).Count"
+    )
+    total = 0
+    # Duas passadas: a 2a pega renderers que o browser possa respawnar ao morrer.
+    for _ in range(2):
+        try:
+            r = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True, text=True, timeout=30,
+            )
+            linhas = [x for x in (r.stdout or "").strip().splitlines() if x.strip().isdigit()]
+            if linhas:
+                total = int(linhas[-1])
+        except Exception as exc:
+            print(f"     Aviso: falha ao encerrar Chrome do robo: {exc}")
+            return
+        if total == 0:
+            break
+        time.sleep(1)
+    print(f"🏁 Chrome do robo encerrado (perfil '{perfil}' / porta {porta}).")
