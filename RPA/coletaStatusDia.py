@@ -34,17 +34,29 @@ def _fechar_paginas_extras(portal_page):
                 pass
 
 
+def _rotulo_anotacao(tem_anotacao):
+    """Converte o booleano da verificacao em rotulo para o banco (ou None se nao verificado)."""
+    if tem_anotacao is True:
+        return "Sim"
+    if tem_anotacao is False:
+        return "Não"
+    return None  # desconhecido -> nao sobrescreve o valor atual
+
+
 def processar_com_retentativas(portal_page, numero, max_tentativas, espera_segundos):
     ultimo_erro = None
     for tentativa in range(1, max_tentativas + 1):
         try:
             if tentativa > 1:
                 print(f"    - Nova tentativa {tentativa}/{max_tentativas} para {numero}...")
-            status = portal_bb.coletar_status_portal(portal_page, numero)
-            database.atualizar_status_portal(numero, status)
-            print(f"✅ {numero}: status do portal = '{status}'")
+            status, tem_anotacao = portal_bb.coletar_status_e_anotacao_portal(portal_page, numero)
+            rotulo_anotacao = _rotulo_anotacao(tem_anotacao)
+            database.atualizar_status_portal(numero, status, tem_anotacao_portal=rotulo_anotacao)
+            anotacao_txt = rotulo_anotacao if rotulo_anotacao is not None else "não verificado"
+            print(f"✅ {numero}: status do portal = '{status}' | anotação no portal = {anotacao_txt}")
             log_event(logger, "Status do portal atualizado.", solicitacao=numero,
-                      attempt=tentativa, status="success", status_portal=status)
+                      attempt=tentativa, status="success", status_portal=status,
+                      tem_anotacao_portal=rotulo_anotacao)
             return True
         except portal_bb.AcessoNaoAutorizadoError as exc:
             # Erro permanente para esta solicitacao: registra e segue.

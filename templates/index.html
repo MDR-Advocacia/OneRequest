@@ -105,6 +105,7 @@
                     <th class="col-anotacao">Anotação</th>
                     <th class="col-status">Status</th>
                     <th class="col-status">Status Portal</th>
+                    <th class="col-status">Anot. Portal</th>
                     <th class="col-acoes">Ações</th>
                 </tr>
             </thead>
@@ -173,6 +174,10 @@
 
                     <td class="text-center">
                         {{ item['status_portal'] if item['status_portal'] else '-' }}
+                    </td>
+
+                    <td class="text-center">
+                        {{ item['tem_anotacao_portal'] if item['tem_anotacao_portal'] else '-' }}
                     </td>
 
                     <td>

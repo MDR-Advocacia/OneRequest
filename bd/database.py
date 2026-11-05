@@ -92,12 +92,14 @@ def inicializar_banco():
             data_agendamento TEXT DEFAULT '',
             status_sistema TEXT DEFAULT 'Aberto' NOT NULL,
             data_portal TEXT,
-            status_portal TEXT
+            status_portal TEXT,
+            tem_anotacao_portal TEXT
         );
         """)
         # Colunas adicionadas depois (idempotente) para bancos ja existentes.
         cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS data_portal TEXT;")
         cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS status_portal TEXT;")
+        cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS tem_anotacao_portal TEXT;")
         cur.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -193,13 +195,23 @@ def obter_solicitacoes_vencem_hoje():
         return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
-def atualizar_status_portal(numero_solicitacao, status_portal):
-    """Atualiza o status do portal (ex.: 'Em Elaboracao') de uma solicitacao."""
+def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_portal=None):
+    """Atualiza o status do portal (ex.: 'Em Elaboracao') de uma solicitacao.
+
+    tem_anotacao_portal: 'Sim'/'Não' quando verificado; None nao altera a coluna
+    (preserva o ultimo valor conhecido).
+    """
     with _get_cursor() as cur:
-        cur.execute(
-            "UPDATE solicitacoes SET status_portal = %s WHERE numero_solicitacao = %s",
-            (status_portal, numero_solicitacao)
-        )
+        if tem_anotacao_portal is None:
+            cur.execute(
+                "UPDATE solicitacoes SET status_portal = %s WHERE numero_solicitacao = %s",
+                (status_portal, numero_solicitacao)
+            )
+        else:
+            cur.execute(
+                "UPDATE solicitacoes SET status_portal = %s, tem_anotacao_portal = %s WHERE numero_solicitacao = %s",
+                (status_portal, tem_anotacao_portal, numero_solicitacao)
+            )
 
 
 def obter_solicitacoes_pendentes():

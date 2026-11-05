@@ -65,8 +65,12 @@ def obter_solicitacoes_vencem_hoje():
     return data['numeros']
 
 
-def atualizar_status_portal(numero_solicitacao, status_portal):
-    return _put('/solicitacoes/status-portal', {
+def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_portal=None):
+    payload = {
         'numero_solicitacao': numero_solicitacao,
         'status_portal': status_portal,
-    })
+    }
+    # So envia o campo quando ha valor verificado ('Sim'/'Nao'); None nao sobrescreve.
+    if tem_anotacao_portal is not None:
+        payload['tem_anotacao_portal'] = tem_anotacao_portal
+    return _put('/solicitacoes/status-portal', payload)

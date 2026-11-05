@@ -541,7 +541,11 @@ def rpa_atualizar_status_portal():
     numero = dados.get('numero_solicitacao')
     if not numero:
         return jsonify({'status': 'erro', 'mensagem': 'numero_solicitacao é obrigatório.'}), 400
-    database.atualizar_status_portal(numero, dados.get('status_portal'))
+    database.atualizar_status_portal(
+        numero,
+        dados.get('status_portal'),
+        tem_anotacao_portal=dados.get('tem_anotacao_portal'),
+    )
     return jsonify({'status': 'sucesso'})
 
 

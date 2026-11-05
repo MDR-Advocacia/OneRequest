@@ -1,5 +1,7 @@
 import re
+import unicodedata
 from pathlib import Path
+from urllib.parse import urljoin
 import os
 import time
 from playwright.sync_api import Page, Frame, TimeoutError
@@ -24,6 +26,14 @@ CNJ_PATTERN = re.compile(r"(?<!\d)(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}|\d{20})(
 DATA_PORTAL_PATTERN = re.compile(r",\s*de\s+(\d{2}/\d{2}/\d{4})")
 
 DETALHE_HEADER_SELECTOR = 'h2.left:has-text("Solicitação : Detalhamento")'
+# --- Verificacao de anotacao no portal ---
+# Link da aba "Anotacoes" presente no menu "Opcoes" da pagina de detalhe/anotacao.
+# Casamos apenas pelo actionOutcome (estavel); o cid e os ids j_idXXX sao dinamicos.
+ANOTACAO_LINK_SELECTOR = 'a[href*="CADASTRAR_ANOTACAO_TAREFA"]'
+# Marcador (ja sem acento/maiusculas) de que a pagina de anotacoes carregou.
+ANOTACAO_PAGE_HINTS = ("cadastramento anotacao",)
+# Texto exibido quando NAO ha anotacao cadastrada (ja sem acento/maiusculas).
+SEM_ANOTACAO_HINTS = ("nao ha nenhuma anotacao cadastrada",)
 # Trechos que identificam a pagina de erro "Acesso nao autorizado" (advogado nao cadastrado).
 # Comparados sempre em minusculas; basta um deles aparecer para classificar como erro permanente.
 ACESSO_NEGADO_HINTS = (
@@ -817,13 +827,14 @@ def coletar_detalhes(page: Page, numero_solicitacao: str) -> dict:
     return dados_solicitacao
 
 
-def coletar_status_portal(page: Page, numero_solicitacao: str) -> str:
-    """Navega para a pagina da solicitacao e le o 'Status da solicitacao' (span.status_texto).
+def _sem_acentos(texto: str) -> str:
+    """Normaliza para comparar sem depender de acento/maiuscula."""
+    decomposto = unicodedata.normalize("NFKD", texto or "")
+    return "".join(c for c in decomposto if not unicodedata.combining(c)).lower()
 
-    Versao leve de coletar_detalhes: nao abre o popup da DMI nem consulta a API,
-    so extrai o status atual do portal. Reaproveita aguardar_pagina_detalhe, que
-    faz fast-fail na pagina de 'Acesso nao autorizado'.
-    """
+
+def _abrir_pagina_detalhe(page: Page, numero_solicitacao: str):
+    """Navega para a buscaRapida (que redireciona para detalhar?cid=...) e aguarda o detalhe."""
     match = re.match(r"(\d{4})\/(\d{10})", numero_solicitacao)
     if not match:
         raise ValueError(f"Formato de número inválido: {numero_solicitacao}")
@@ -841,6 +852,73 @@ def coletar_status_portal(page: Page, numero_solicitacao: str) -> str:
     )
     aguardar_pagina_detalhe(page, int(os.getenv("RPA_DETALHE_SELECTOR_TIMEOUT_MS", "30000")))
 
+
+def _ler_status_portal(page: Page) -> str:
     status_locator = page.locator("div.info_status span.status_texto").first
     status_locator.wait_for(state="visible", timeout=int(os.getenv("RPA_STATUS_TIMEOUT_MS", "15000")))
     return status_locator.inner_text().strip()
+
+
+def coletar_status_portal(page: Page, numero_solicitacao: str) -> str:
+    """Navega para a pagina da solicitacao e le o 'Status da solicitacao' (span.status_texto).
+
+    Versao leve de coletar_detalhes: nao abre o popup da DMI nem consulta a API,
+    so extrai o status atual do portal. Reaproveita aguardar_pagina_detalhe, que
+    faz fast-fail na pagina de 'Acesso nao autorizado'.
+    """
+    _abrir_pagina_detalhe(page, numero_solicitacao)
+    return _ler_status_portal(page)
+
+
+def verificar_anotacao_portal(page: Page) -> bool | None:
+    """Verifica se a solicitacao JA possui anotacao cadastrada no portal.
+
+    Assume que `page` esta na pagina de detalhe (detalhar?cid=...). Segue o link da
+    aba 'Anotacoes' (um GET que apenas EXIBE a lista) e checa o texto da pagina.
+    Acao 100% read-only: nunca aciona o botao de criar anotacao.
+
+    Retorna:
+        True  -> existe anotacao cadastrada.
+        False -> nao ha anotacao ("Nao ha nenhuma anotacao cadastrada.").
+        None  -> nao foi possivel verificar (link ausente ou pagina nao confirmada).
+    """
+    timeout = int(os.getenv("RPA_ANOTACAO_TIMEOUT_MS", "20000"))
+    try:
+        link = page.locator(ANOTACAO_LINK_SELECTOR).first
+        link.wait_for(state="attached", timeout=timeout)
+        href = link.get_attribute("href")
+    except Exception as exc:
+        print(f"    ⚠️ Link de 'Anotações' não encontrado na página de detalhe: {exc}")
+        return None
+    if not href:
+        print("    ⚠️ Link de 'Anotações' sem href; verificação inconclusiva.")
+        return None
+
+    # Navega direto pela URL do proprio link (carrega o cid correto da conversa Seam),
+    # evitando depender da visibilidade do submenu 'Opcoes' (que so aparece no hover).
+    url_anotacao = urljoin(page.url, href)
+    try:
+        page.goto(url_anotacao, timeout=timeout, wait_until="domcontentloaded")
+        aguardar_documento(page, timeout=timeout)
+    except Exception as exc:
+        print(f"    ⚠️ Não foi possível abrir a aba de 'Anotações': {exc}")
+        return None
+
+    texto = _sem_acentos(texto_pagina(page))
+    if not any(hint in texto for hint in ANOTACAO_PAGE_HINTS):
+        # Pagina de anotacoes nao confirmada -> nao arrisca um falso "tem anotacao".
+        print("    ⚠️ Página de 'Anotações' não confirmada; verificação inconclusiva.")
+        return None
+
+    return not any(hint in texto for hint in SEM_ANOTACAO_HINTS)
+
+
+def coletar_status_e_anotacao_portal(page: Page, numero_solicitacao: str) -> tuple[str, bool | None]:
+    """Abre a solicitacao UMA vez e coleta: (status do portal, tem_anotacao).
+
+    tem_anotacao: True (tem) / False (nao tem) / None (nao verificado).
+    """
+    _abrir_pagina_detalhe(page, numero_solicitacao)
+    status = _ler_status_portal(page)
+    tem_anotacao = verificar_anotacao_portal(page)
+    return status, tem_anotacao
