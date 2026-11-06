@@ -557,6 +557,25 @@ def login_manual_ativo() -> bool:
     return (os.getenv("RPA_LOGIN_MANUAL", "") or "").strip().lower() in ("1", "true", "sim", "yes", "on")
 
 
+def _sessao_parece_valida(page: Page) -> bool:
+    """Confirmacao tolerante da sessao (modo manual): estamos no dominio juridico,
+    NAO redirecionados para o SSO (loginweb) e sem campos de login na tela.
+    Mais robusta que exigir o texto 'Portal Juridico' (que a pagina de erro tambem tem)."""
+    try:
+        url = (page.url or "").lower()
+        if "juridico.bb.com.br" not in url:
+            return False
+        if any(hint in url for hint in LOGIN_URL_HINTS):
+            return False
+        if pagina_erro_acesso(page):
+            return False
+        if campos_login_presentes(page):
+            return False
+        return True
+    except Exception:
+        return False
+
+
 def arquivo_sessao_manual() -> str:
     return os.getenv("RPA_SESSAO_MANUAL_ARQUIVO", r"C:\temp\bb_sessao_manual.json")
 
@@ -684,7 +703,7 @@ def fazer_login_manual(context) -> Page:
             aguardar_documento(portal_page, timeout=30000)
         except Exception:
             pass
-        if portal_esta_logado(portal_page):
+        if portal_esta_logado(portal_page) or _sessao_parece_valida(portal_page):
             print("✅ Sessão manual válida. Seguindo sem login automático.")
             return portal_page
         print("    ⚠️ Sessão manual salva não autenticou (provavelmente expirou).")
