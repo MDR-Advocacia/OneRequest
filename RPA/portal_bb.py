@@ -508,8 +508,14 @@ def fazer_login_direto(context) -> Page:
 def fazer_login(context) -> Page:
     """
     Realiza login no Portal Jurídico.
-    Prefere OneLog quando configurado; caso contrário, faz login direto via SSO.
+    Modo LOGIN MANUAL (RPA_LOGIN_MANUAL=1): reaproveita a sessão de um login feito
+    a mão (cookies salvos por login_manual.py) e nunca usa credenciais automáticas.
+    Caso contrário: prefere OneLog quando configurado; senão, login direto via SSO.
     """
+    if login_manual_ativo():
+        print("🔑 Modo LOGIN MANUAL ativo (RPA_LOGIN_MANUAL). Login automático desativado.")
+        return fazer_login_manual(context)
+
     if not onelog_client.is_configured():
         print("🔐 OneLog não configurado. Usando login direto no SSO.")
         return fazer_login_direto(context)
@@ -535,6 +541,176 @@ def fazer_login(context) -> Page:
                 time.sleep(espera)
     raise RuntimeError(
         f"Login via OneLog falhou apos {tentativas} tentativas. Ultimo erro: {ultimo_erro}"
+    )
+
+
+# ============================================================
+# MODO LOGIN MANUAL
+# Reaproveita uma sessao autenticada "na mao". Como o robo mata e relança o Chrome
+# a cada ciclo (e cookies de sessao nao sobrevivem ao fechamento), a sessao e salva
+# em arquivo (cookies do dominio bb.com.br) por login_manual.py e reinjetada aqui a
+# cada ciclo -- mesmo principio do OneLog, mas com credencial humana.
+# Liga/desliga via .env: RPA_LOGIN_MANUAL=1 (manual) / 0 ou ausente (automatico).
+# ============================================================
+
+def login_manual_ativo() -> bool:
+    return (os.getenv("RPA_LOGIN_MANUAL", "") or "").strip().lower() in ("1", "true", "sim", "yes", "on")
+
+
+def arquivo_sessao_manual() -> str:
+    return os.getenv("RPA_SESSAO_MANUAL_ARQUIVO", r"C:\temp\bb_sessao_manual.json")
+
+
+def _cookie_eh_bb(cookie) -> bool:
+    return "bb.com.br" in (cookie.get("domain") or "").lower()
+
+
+def _cookie_para_persistir(cookie) -> dict:
+    """Mantem apenas os campos que o Playwright aceita em add_cookies."""
+    dados = {
+        "name": cookie.get("name"),
+        "value": cookie.get("value"),
+        "domain": cookie.get("domain"),
+        "path": cookie.get("path") or "/",
+        "httpOnly": bool(cookie.get("httpOnly", False)),
+        "secure": bool(cookie.get("secure", True)),
+    }
+    expires = cookie.get("expires")
+    # -1 (ou ausente) = cookie de sessao: omitimos 'expires' para reinjetar como sessao.
+    if expires is not None and expires != -1:
+        try:
+            dados["expires"] = float(expires)
+        except (TypeError, ValueError):
+            pass
+    same_site = cookie.get("sameSite")
+    if same_site in ("Strict", "Lax", "None"):
+        dados["sameSite"] = same_site
+    return dados
+
+
+def salvar_sessao_manual(context, caminho: str = None) -> int:
+    """Salva os cookies do dominio bb.com.br em arquivo JSON. Retorna a quantidade."""
+    import json
+    caminho = caminho or arquivo_sessao_manual()
+    try:
+        cookies = context.cookies()
+    except Exception as exc:
+        raise RuntimeError(f"Não foi possível ler os cookies do contexto: {exc}")
+    cookies_bb = [_cookie_para_persistir(c) for c in cookies if _cookie_eh_bb(c)]
+    cookies_bb = [c for c in cookies_bb if c["name"] and c["value"] is not None and c["domain"]]
+    if not cookies_bb:
+        raise RuntimeError("Nenhum cookie do portal (bb.com.br) encontrado para salvar.")
+    pasta = os.path.dirname(caminho)
+    if pasta:
+        os.makedirs(pasta, exist_ok=True)
+    with open(caminho, "w", encoding="utf-8") as fp:
+        json.dump(cookies_bb, fp)
+    print(f"💾 Sessão manual salva: {len(cookies_bb)} cookies em {caminho}")
+    return len(cookies_bb)
+
+
+def _carregar_sessao_manual(caminho: str) -> list:
+    import json
+    if not os.path.exists(caminho):
+        return []
+    try:
+        with open(caminho, "r", encoding="utf-8") as fp:
+            dados = json.load(fp)
+        return dados if isinstance(dados, list) else []
+    except Exception as exc:
+        print(f"    ⚠️ Falha ao ler sessão manual ({caminho}): {exc}")
+        return []
+
+
+def aguardar_login_manual(page: Page, espera_seg: int) -> bool:
+    """Aguarda (polling) o usuario concluir o login na janela do Chrome. True se logou."""
+    deadline = time.monotonic() + espera_seg
+    ja_avisou = False
+    while time.monotonic() < deadline:
+        if portal_esta_logado(page):
+            return True
+        if not ja_avisou:
+            restante = int(deadline - time.monotonic())
+            print(f"    - Aguardando login manual na janela do Chrome (até {restante}s)...")
+            ja_avisou = True
+        time.sleep(2)
+    return portal_esta_logado(page)
+
+
+def capturar_sessao_manual(context, espera_seg: int = 900, caminho: str = None) -> Page:
+    """Abre a tela de login do portal e espera o usuario logar a mao; ao confirmar,
+    salva os cookies da sessao em arquivo. Usado por login_manual.py."""
+    caminho = caminho or arquivo_sessao_manual()
+    portal_page = context.pages[0] if context.pages else context.new_page()
+    try:
+        portal_page.goto(PORTAL_HOME_URL, timeout=90000, wait_until="domcontentloaded")
+    except Exception:
+        pass
+    if not portal_esta_logado(portal_page):
+        print("\n" + "=" * 64)
+        print("🔑 LOGIN MANUAL — faça o login do portal do BB na janela do Chrome.")
+        print("=" * 64 + "\n")
+        try:
+            portal_page.goto(LOGIN_URL, timeout=90000, wait_until="domcontentloaded")
+        except Exception:
+            pass
+        if not aguardar_login_manual(portal_page, espera_seg):
+            raise RuntimeError(f"Login manual não concluído em {espera_seg}s.")
+    print("✅ Login manual confirmado (Portal Jurídico visível).")
+    salvar_sessao_manual(context, caminho)
+    return portal_page
+
+
+def fazer_login_manual(context) -> Page:
+    """Login no modo manual (usado pelos robos agendados):
+    1. Reinjeta a sessao salva por login_manual.py e confirma no portal.
+    2. Se nao houver sessao valida, aguarda um login manual na janela por um tempo
+       curto (RPA_LOGIN_MANUAL_ESPERA_SEG) e, se logar, salva a sessao.
+    3. Se nada disso autenticar, levanta erro claro (sem derrubar a maquina): o
+       proximo ciclo tenta de novo e o usuario e orientado a rodar login_manual.py.
+    """
+    caminho = arquivo_sessao_manual()
+    portal_page = context.pages[0] if context.pages else context.new_page()
+
+    cookies = _carregar_sessao_manual(caminho)
+    if cookies:
+        try:
+            context.add_cookies(cookies)
+            print(f"🍪 {len(cookies)} cookies da sessão manual reinjetados ({caminho}).")
+        except Exception as exc:
+            print(f"    ⚠️ Falha ao reinjetar cookies da sessão manual: {exc}")
+        try:
+            portal_page.goto(PORTAL_HOME_URL, timeout=90000, wait_until="domcontentloaded")
+            aguardar_documento(portal_page, timeout=30000)
+        except Exception:
+            pass
+        if portal_esta_logado(portal_page):
+            print("✅ Sessão manual válida. Seguindo sem login automático.")
+            return portal_page
+        print("    ⚠️ Sessão manual salva não autenticou (provavelmente expirou).")
+    else:
+        print(f"    ⚠️ Nenhuma sessão manual salva em {caminho}.")
+
+    # Sem sessao valida: tenta aguardar um login manual ao vivo por um tempo curto.
+    espera_seg = int(os.getenv("RPA_LOGIN_MANUAL_ESPERA_SEG", "60"))
+    if espera_seg > 0:
+        print(f"    - Sem sessão válida. Aguardando login manual por até {espera_seg}s...")
+        try:
+            portal_page.goto(LOGIN_URL, timeout=90000, wait_until="domcontentloaded")
+        except Exception:
+            pass
+        if aguardar_login_manual(portal_page, espera_seg):
+            print("✅ Login manual detectado ao vivo.")
+            try:
+                salvar_sessao_manual(context, caminho)
+            except Exception as exc:
+                print(f"    ⚠️ Não foi possível salvar a sessão: {exc}")
+            return portal_page
+
+    raise RuntimeError(
+        "Modo login manual: sem sessão válida. "
+        f"Rode 'python RPA/login_manual.py' para logar a mão (salva em {caminho}); "
+        "o próximo ciclo reaproveita a sessão."
     )
 
 
