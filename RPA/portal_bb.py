@@ -557,6 +557,12 @@ def fazer_login_direto(context) -> Page:
         raise e
 
 
+def _e_cookie_de_sessao_http(cookie):
+    """JSESSIONID: a sessão do servidor de aplicação do portal (a conversação),
+    não a autenticação — essa está nos cookies de SSO."""
+    return str(cookie.get("name") or "").upper() == "JSESSIONID"
+
+
 def _desfazer_sessao_remota(context, cookies, cdp=None, ua_original=None):
     """Tira do navegador o que a tentativa com a sessão manual deixou, antes de
     cair para o OneLog: os cookies injetados e o user-agent trocado.
@@ -593,7 +599,13 @@ def _tentar_sessao_remota(context):
     lento ou rede instável não dizem nada sobre a sessão: ela continua valendo
     para a próxima rodada, e esta segue pelo OneLog. A invalidação leva o id da
     sessão testada, para um robô que testou a sessão antiga não derrubar a que
-    o operador acabou de colar."""
+    o operador acabou de colar.
+
+    O JSESSIONID colado NÃO entra: é a sessão do portal aberta no navegador de
+    quem colou, e a coleta do Flow usa essa mesma sessão ao mesmo tempo, de
+    outro IP — dois clientes na mesma conversação derrubam o Assessoria em
+    'erroDesconhecido' (11/11/2026). O robô entra só com os cookies de SSO e do
+    Cloudflare e o portal abre uma sessão própria para ele."""
     try:
         dados = api_client.obter_sessao_manual()
     except Exception as exc:
@@ -631,26 +643,45 @@ def _tentar_sessao_remota(context):
         _desfazer_sessao_remota(context, [], cdp, ua_original)
         return None
 
-    # Perfil persistente guarda cookies velhos de juridico.bb.com.br que travam o
-    # portal ('erroDesconhecido'). Limpa antes de injetar a sessão colada (que fica
-    # em .bb.com.br e não é afetada por esta limpeza).
-    limpar_todos_cookies_juridico(context)
+    # Primeiro sem o JSESSIONID colado. Se o portal não aceitar só com o SSO, tenta
+    # com a sessão inteira antes de concluir que ela morreu: a invalidação tira a
+    # sessão também do Flow, então não pode sair de um teste pela metade.
+    sem_jsessionid = [c for c in cookies_formatados if not _e_cookie_de_sessao_http(c)]
+    if sem_jsessionid and len(sem_jsessionid) < len(cookies_formatados):
+        tentativas = [
+            (sem_jsessionid, "sem o JSESSIONID colado: o portal abre uma sessão própria do robô"),
+            (cookies_formatados, "com a sessão inteira, como foi colada"),
+        ]
+    else:
+        tentativas = [(cookies_formatados, "como foi colada")]
 
-    context.add_cookies(cookies_formatados)
-    print(f"🍪 {len(cookies_formatados)} cookies da sessão manual remota injetados.")
+    injetados = []
+    for numero, (lote, rotulo) in enumerate(tentativas, start=1):
+        # Perfil persistente guarda cookies velhos de juridico.bb.com.br que travam o
+        # portal ('erroDesconhecido') — e, na segunda tentativa, a sessão que o portal
+        # abriu na primeira. Limpa antes de injetar (a sessão colada fica em
+        # .bb.com.br e não é afetada por esta limpeza).
+        limpar_todos_cookies_juridico(context)
+        _desfazer_sessao_remota(context, injetados)
+        context.add_cookies(lote)
+        injetados = lote
+        print(f"🍪 {len(lote)} cookies da sessão manual remota injetados ({rotulo}).")
 
-    try:
-        portal_page.goto(PORTAL_HOME_URL, timeout=90000, wait_until="domcontentloaded")
-        aguardar_documento(portal_page, timeout=30000)
-    except Exception as exc:
-        print(f"    ⚠️ O portal não abriu com a sessão manual ({exc}). "
-              "A sessão continua valendo; esta rodada segue pelo OneLog.")
-        _desfazer_sessao_remota(context, cookies_formatados, cdp, ua_original)
-        return None
+        try:
+            portal_page.goto(PORTAL_HOME_URL, timeout=90000, wait_until="domcontentloaded")
+            aguardar_documento(portal_page, timeout=30000)
+        except Exception as exc:
+            print(f"    ⚠️ O portal não abriu com a sessão manual ({exc}). "
+                  "A sessão continua valendo; esta rodada segue pelo OneLog.")
+            _desfazer_sessao_remota(context, injetados, cdp, ua_original)
+            return None
 
-    if _sessao_parece_valida(portal_page):
-        print("✅ Sessão manual remota válida. Seguindo sem OneLog.")
-        return portal_page
+        if _sessao_parece_valida(portal_page):
+            print("✅ Sessão manual remota válida. Seguindo sem OneLog.")
+            return portal_page
+
+        if numero < len(tentativas):
+            print("    ⚠️ O portal não aceitou só os cookies de SSO. Tentando com a sessão inteira...")
 
     print("    ⚠️ Sessão manual remota não autenticou. Invalidando e seguindo para OneLog.")
     try:
@@ -659,7 +690,7 @@ def _tentar_sessao_remota(context):
         )
     except Exception:
         pass
-    _desfazer_sessao_remota(context, cookies_formatados, cdp, ua_original)
+    _desfazer_sessao_remota(context, injetados, cdp, ua_original)
     return None
 
 def fazer_login(context) -> Page:

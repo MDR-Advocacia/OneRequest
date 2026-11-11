@@ -59,7 +59,9 @@ def verificar_erro_tecnico(page: Page, contexto: str):
 def limpar_cookie_erro_wfj(context):
     print("    - Limpando somente JSESSIONID do WFJ/raiz...")
     removidos = 0
-    dominios = ("juridico.bb.com.br", ".juridico.bb.com.br")
+    # .bb.com.br: é onde fica o JSESSIONID de uma sessão colada no Flow, quando
+    # o robô precisou entrar com a sessão inteira (portal_bb._tentar_sessao_remota).
+    dominios = ("juridico.bb.com.br", ".juridico.bb.com.br", ".bb.com.br")
     paths = ("/wfj", "/wfj/", "/")
 
     try:
@@ -162,7 +164,16 @@ def clicar_pesquisar(frame):
 
         print("[✅] Registros carregados com sucesso.")
         return True
+    except ErroTecnicoPortal:
+        # Sobe para coletar_numeros_com_recuperacao, que limpa o JSESSIONID e
+        # volta para a lista. O except genérico abaixo engolia este erro, e a
+        # recuperação nunca disparava.
+        raise
     except Exception as e:
+        # O portal também cai na página de erro DEPOIS do clique: aí o que estoura
+        # é o tempo de espera dos registros, não a checagem. Confere antes de
+        # tratar como falha genérica.
+        verificar_erro_tecnico(frame.page, "carregamento dos registros")
         print(f"[❌] Falha ao clicar no botão 'Pesquisar': {e}")
         return False
 
