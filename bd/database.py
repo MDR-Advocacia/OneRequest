@@ -117,6 +117,46 @@ def inicializar_banco():
         """)
 
 
+# --- Solicitações ignoradas (fantasmas do portal) ---
+# Alguns números aparecem na grade "Visão Advogado" que o Robô 1 lê, mas a busca
+# pelo número no portal retorna "Nenhum registro encontrado" (o detalhe nunca abre).
+# Sem tratamento, o sync as reabre a cada ciclo e o Robô 2 falha nelas eternamente.
+# Elas são descartadas: nunca reabertas, nunca cobradas de detalhe, e marcadas com
+# status_sistema = 'Ignorado' (status proprio, invisivel em todas as telas).
+# Comeca com as conhecidas; da para somar outras via env SOLICITACOES_IGNORADAS
+# (separadas por virgula) sem alterar o codigo.
+_SOLICITACOES_IGNORADAS_PADRAO = {
+    "2014/0197851219",
+    "2024/0383826219",
+}
+
+
+def obter_numeros_ignorados():
+    """Conjunto de números a ignorar (padrão + env SOLICITACOES_IGNORADAS)."""
+    extras = {
+        n.strip()
+        for n in os.getenv("SOLICITACOES_IGNORADAS", "").split(",")
+        if n.strip()
+    }
+    return _SOLICITACOES_IGNORADAS_PADRAO | extras
+
+
+def marcar_como_ignoradas(numeros_solicitacao):
+    """Marca solicitações como 'Ignorado' (fantasmas do portal).
+
+    Status distinto de 'Respondido' para não poluir a lista de respondidas e para
+    sair de 'Aberto' (assim some de abertas/pendentes/vencem-hoje/atrasadas).
+    """
+    numeros = list(numeros_solicitacao)
+    if not numeros:
+        return
+    with _get_cursor() as cur:
+        cur.execute(
+            "UPDATE solicitacoes SET status_sistema = 'Ignorado' WHERE numero_solicitacao = ANY(%s)",
+            (numeros,)
+        )
+
+
 # --- Funções de Sincronização de Status (usadas pelo RPA) ---
 
 def obter_solicitacoes_abertas_db():
@@ -250,7 +290,12 @@ def obter_solicitacoes_pendentes():
             OR titulo = 'Acesso não autorizado'
           );
         """)
-        return [row['numero_solicitacao'] for row in cur.fetchall()]
+        ignorados = obter_numeros_ignorados()
+        return [
+            row['numero_solicitacao']
+            for row in cur.fetchall()
+            if row['numero_solicitacao'] not in ignorados
+        ]
 
 
 # --- Funções de Usuários ---

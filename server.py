@@ -497,19 +497,26 @@ def rpa_sync_solicitacoes():
     if not numeros_portal:
         return jsonify({'status': 'erro', 'mensagem': 'Lista de números do portal vazia.'}), 400
 
-    numeros_portal_set = set(numeros_portal)
+    ignorados = set(database.obter_numeros_ignorados())
+    # Fantasmas do portal: fora da lista a sincronizar, para nao serem reabertos
+    # nem reinseridos a cada ciclo.
+    numeros_portal_set = set(numeros_portal) - ignorados
     numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
 
-    respondidas = list(numeros_abertos_db - numeros_portal_set)
+    respondidas = list(numeros_abertos_db - numeros_portal_set - ignorados)
     if respondidas:
         database.marcar_como_respondidas(respondidas)
 
     database.inserir_novas_solicitacoes(list(numeros_portal_set))
     database.marcar_como_abertas(list(numeros_portal_set))
 
+    # Garante que ignorados conhecidos saiam de 'Aberto' e nunca voltem ao loop.
+    database.marcar_como_ignoradas(ignorados)
+
     return jsonify({
         'status': 'sucesso',
         'respondidas': len(respondidas),
+        'ignorados': len(ignorados),
         'total_portal': len(numeros_portal_set)
     })
 
