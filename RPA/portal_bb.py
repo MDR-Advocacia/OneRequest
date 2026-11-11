@@ -297,6 +297,57 @@ def limpar_cookies_sessao_portal(context):
     print(f"✅ Limpeza de cookies de sessão finalizada ({removidos} remoções solicitadas).")
 
 
+def limpar_todos_cookies_juridico(context):
+    """Apaga TODOS os cookies de juridico.bb.com.br do perfil (não só o JSESSIONID).
+
+    O Chrome do robô usa perfil persistente (C:\\temp\\chrome-perfil), então um cookie
+    velho de juridico.bb.com.br sobra de um ciclo para o outro e faz o portal cair em
+    'erroDesconhecido' nas pesquisas. Equivale a limpar o site juridico.bb.com.br na mão.
+    Os cookies da sessão colada no Flow entram no domínio .bb.com.br e NÃO são tocados
+    aqui, então esta limpeza deve rodar ANTES de injetar a sessão remota."""
+    print("\n▶️  Limpando cookies antigos de juridico.bb.com.br (evita 'erroDesconhecido')...")
+    removidos = 0
+
+    try:
+        cookies = context.cookies()
+    except Exception:
+        cookies = []
+
+    try:
+        cdp = context.new_cdp_session(context.pages[0]) if context.pages else None
+    except Exception:
+        cdp = None
+
+    for cookie in cookies:
+        nome = cookie.get("name", "")
+        dominio = cookie.get("domain", "")
+        path = cookie.get("path", "/")
+
+        if "juridico.bb.com.br" not in dominio:
+            continue
+
+        try:
+            context.clear_cookies(name=nome, domain=dominio, path=path)
+            removidos += 1
+        except TypeError:
+            try:
+                context.clear_cookies(name=nome, domain=dominio)
+                removidos += 1
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        if cdp:
+            try:
+                cdp.send("Network.deleteCookies", {"name": nome, "domain": dominio, "path": path})
+            except Exception:
+                pass
+
+    print(f"✅ Cookies de juridico.bb.com.br limpos ({removidos} remoções solicitadas).")
+    return removidos
+
+
 def deve_limpar_cookies_antes_login() -> bool:
     return os.getenv(
         "RPA_LIMPAR_COOKIES_ANTES_LOGIN",
@@ -579,6 +630,11 @@ def _tentar_sessao_remota(context):
         print("    ⚠️ Sessão manual remota sem cookies válidos.")
         _desfazer_sessao_remota(context, [], cdp, ua_original)
         return None
+
+    # Perfil persistente guarda cookies velhos de juridico.bb.com.br que travam o
+    # portal ('erroDesconhecido'). Limpa antes de injetar a sessão colada (que fica
+    # em .bb.com.br e não é afetada por esta limpeza).
+    limpar_todos_cookies_juridico(context)
 
     context.add_cookies(cookies_formatados)
     print(f"🍪 {len(cookies_formatados)} cookies da sessão manual remota injetados.")
