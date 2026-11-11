@@ -497,26 +497,22 @@ def rpa_sync_solicitacoes():
     if not numeros_portal:
         return jsonify({'status': 'erro', 'mensagem': 'Lista de números do portal vazia.'}), 400
 
-    ignorados = set(database.obter_numeros_ignorados())
-    # Fantasmas do portal: fora da lista a sincronizar, para nao serem reabertos
-    # nem reinseridos a cada ciclo.
-    numeros_portal_set = set(numeros_portal) - ignorados
+    numeros_portal_set = set(numeros_portal)
+    # obter_solicitacoes_abertas_db() ja exclui fantasmas, e marcar_como_abertas()
+    # nao reabre fantasmas — entao solicitacoes marcadas como fantasma ficam fora do
+    # ciclo sem tratamento especial aqui.
     numeros_abertos_db = set(database.obter_solicitacoes_abertas_db())
 
-    respondidas = list(numeros_abertos_db - numeros_portal_set - ignorados)
+    respondidas = list(numeros_abertos_db - numeros_portal_set)
     if respondidas:
         database.marcar_como_respondidas(respondidas)
 
     database.inserir_novas_solicitacoes(list(numeros_portal_set))
     database.marcar_como_abertas(list(numeros_portal_set))
 
-    # Garante que ignorados conhecidos saiam de 'Aberto' e nunca voltem ao loop.
-    database.marcar_como_ignoradas(ignorados)
-
     return jsonify({
         'status': 'sucesso',
         'respondidas': len(respondidas),
-        'ignorados': len(ignorados),
         'total_portal': len(numeros_portal_set)
     })
 
@@ -559,6 +555,29 @@ def rpa_atualizar_status_portal():
         tem_anotacao_portal=dados.get('tem_anotacao_portal'),
     )
     return jsonify({'status': 'sucesso'})
+
+
+@app.route('/api/rpa/solicitacoes/fantasma', methods=['PUT'])
+@rpa_auth_required
+def rpa_marcar_fantasma():
+    """Liga/desliga o flag fantasma de uma solicitação (descarte do fluxo).
+
+    Body: { "numero_solicitacao": "AAAA/NNNNNNNNNN", "fantasma": true|false }
+    'fantasma' é opcional e assume True quando ausente.
+    """
+    dados = request.json or {}
+    numero = dados.get('numero_solicitacao')
+    if not numero:
+        return jsonify({'status': 'erro', 'mensagem': 'numero_solicitacao é obrigatório.'}), 400
+    valor = bool(dados.get('fantasma', True))
+    database.marcar_como_fantasma([numero], valor)
+    return jsonify({'status': 'sucesso', 'numero_solicitacao': numero, 'fantasma': valor})
+
+
+@app.route('/api/rpa/solicitacoes/fantasmas', methods=['GET'])
+@rpa_auth_required
+def rpa_listar_fantasmas():
+    return jsonify({'numeros': database.obter_solicitacoes_fantasma()})
 
 
 # ============================================================

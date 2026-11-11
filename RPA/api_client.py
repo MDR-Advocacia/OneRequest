@@ -70,6 +70,19 @@ def obter_solicitacoes_atrasadas():
     return data['numeros']
 
 
+def marcar_como_fantasma(numero_solicitacao, fantasma=True):
+    """Marca/desmarca uma solicitação como fantasma (descarte do fluxo)."""
+    return _put('/solicitacoes/fantasma', {
+        'numero_solicitacao': numero_solicitacao,
+        'fantasma': bool(fantasma),
+    })
+
+
+def obter_solicitacoes_fantasma():
+    data = _get('/solicitacoes/fantasmas')
+    return data['numeros']
+
+
 def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_portal=None):
     payload = {
         'numero_solicitacao': numero_solicitacao,

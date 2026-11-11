@@ -93,13 +93,18 @@ def inicializar_banco():
             status_sistema TEXT DEFAULT 'Aberto' NOT NULL,
             data_portal TEXT,
             status_portal TEXT,
-            tem_anotacao_portal TEXT
+            tem_anotacao_portal TEXT,
+            fantasma BOOLEAN NOT NULL DEFAULT FALSE
         );
         """)
         # Colunas adicionadas depois (idempotente) para bancos ja existentes.
         cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS data_portal TEXT;")
         cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS status_portal TEXT;")
         cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS tem_anotacao_portal TEXT;")
+        # Fantasma: solicitacoes que aparecem na grade do portal mas cujo detalhe
+        # nunca abre ("Nenhum registro encontrado"). Marcadas aqui (banco), setavel
+        # pela UI/FLOW; descartadas do fluxo operacional.
+        cur.execute("ALTER TABLE solicitacoes ADD COLUMN IF NOT EXISTS fantasma BOOLEAN NOT NULL DEFAULT FALSE;")
         cur.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -117,51 +122,42 @@ def inicializar_banco():
         """)
 
 
-# --- Solicitações ignoradas (fantasmas do portal) ---
+# --- Solicitações fantasma (descartadas) ---
 # Alguns números aparecem na grade "Visão Advogado" que o Robô 1 lê, mas a busca
 # pelo número no portal retorna "Nenhum registro encontrado" (o detalhe nunca abre).
 # Sem tratamento, o sync as reabre a cada ciclo e o Robô 2 falha nelas eternamente.
-# Elas são descartadas: nunca reabertas, nunca cobradas de detalhe, e marcadas com
-# status_sistema = 'Ignorado' (status proprio, invisivel em todas as telas).
-# Comeca com as conhecidas; da para somar outras via env SOLICITACOES_IGNORADAS
-# (separadas por virgula) sem alterar o codigo.
-_SOLICITACOES_IGNORADAS_PADRAO = {
-    "2014/0197851219",
-    "2024/0383826219",
-}
+# A marca vive no BANCO (coluna booleana `fantasma`), não no código: assim pode ser
+# setada pela UI/FLOW. Uma solicitação com fantasma=TRUE é descartada — nunca reaberta
+# pelo sync, nunca cobrada de detalhe, e some de todas as telas/consultas operacionais.
 
-
-def obter_numeros_ignorados():
-    """Conjunto de números a ignorar (padrão + env SOLICITACOES_IGNORADAS)."""
-    extras = {
-        n.strip()
-        for n in os.getenv("SOLICITACOES_IGNORADAS", "").split(",")
-        if n.strip()
-    }
-    return _SOLICITACOES_IGNORADAS_PADRAO | extras
-
-
-def marcar_como_ignoradas(numeros_solicitacao):
-    """Marca solicitações como 'Ignorado' (fantasmas do portal).
-
-    Status distinto de 'Respondido' para não poluir a lista de respondidas e para
-    sair de 'Aberto' (assim some de abertas/pendentes/vencem-hoje/atrasadas).
-    """
+def marcar_como_fantasma(numeros_solicitacao, valor=True):
+    """Liga/desliga o flag `fantasma` de uma ou mais solicitações."""
     numeros = list(numeros_solicitacao)
     if not numeros:
         return
     with _get_cursor() as cur:
         cur.execute(
-            "UPDATE solicitacoes SET status_sistema = 'Ignorado' WHERE numero_solicitacao = ANY(%s)",
-            (numeros,)
+            "UPDATE solicitacoes SET fantasma = %s WHERE numero_solicitacao = ANY(%s)",
+            (bool(valor), numeros)
         )
+
+
+def obter_solicitacoes_fantasma():
+    """Números atualmente marcados como fantasma (para conferência/admin)."""
+    with _get_cursor() as cur:
+        cur.execute(
+            "SELECT numero_solicitacao FROM solicitacoes WHERE fantasma = TRUE ORDER BY numero_solicitacao"
+        )
+        return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
 # --- Funções de Sincronização de Status (usadas pelo RPA) ---
 
 def obter_solicitacoes_abertas_db():
     with _get_cursor() as cur:
-        cur.execute("SELECT numero_solicitacao FROM solicitacoes WHERE status_sistema = 'Aberto'")
+        cur.execute(
+            "SELECT numero_solicitacao FROM solicitacoes WHERE status_sistema = 'Aberto' AND fantasma = FALSE"
+        )
         return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
@@ -180,7 +176,7 @@ def marcar_como_abertas(numeros_solicitacao):
         return
     with _get_cursor() as cur:
         cur.execute(
-            "UPDATE solicitacoes SET status_sistema = 'Aberto' WHERE numero_solicitacao = ANY(%s)",
+            "UPDATE solicitacoes SET status_sistema = 'Aberto' WHERE numero_solicitacao = ANY(%s) AND fantasma = FALSE",
             (numeros_solicitacao,)
         )
 
@@ -229,6 +225,7 @@ def obter_solicitacoes_vencem_hoje():
         cur.execute("""
             SELECT numero_solicitacao FROM solicitacoes
             WHERE status_sistema = 'Aberto'
+              AND fantasma = FALSE
               AND prazo ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
               AND (substr(prazo, 7, 4) || '-' || substr(prazo, 4, 2) || '-' || substr(prazo, 1, 2)) <= %s
         """, (hoje_iso,))
@@ -247,6 +244,7 @@ def obter_solicitacoes_atrasadas():
         cur.execute("""
             SELECT numero_solicitacao FROM solicitacoes
             WHERE status_sistema = 'Aberto'
+              AND fantasma = FALSE
               AND prazo ~ '^[0-9]{2}/[0-9]{2}/[0-9]{4}$'
               AND (substr(prazo, 7, 4) || '-' || substr(prazo, 4, 2) || '-' || substr(prazo, 1, 2)) < %s
         """, (hoje_iso,))
@@ -277,6 +275,7 @@ def obter_solicitacoes_pendentes():
         cur.execute("""
         SELECT numero_solicitacao FROM solicitacoes
         WHERE status_sistema = 'Aberto'
+          AND fantasma = FALSE
           AND (
                titulo IS NULL
             OR numero_processo IS NULL
@@ -290,12 +289,7 @@ def obter_solicitacoes_pendentes():
             OR titulo = 'Acesso não autorizado'
           );
         """)
-        ignorados = obter_numeros_ignorados()
-        return [
-            row['numero_solicitacao']
-            for row in cur.fetchall()
-            if row['numero_solicitacao'] not in ignorados
-        ]
+        return [row['numero_solicitacao'] for row in cur.fetchall()]
 
 
 # --- Funções de Usuários ---
