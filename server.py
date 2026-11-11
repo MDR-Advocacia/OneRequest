@@ -631,6 +631,36 @@ def rpa_invalidar_sessao_manual():
 
 
 # ============================================================
+# EXECUÇÃO MANUAL DOS ROBÔS (proxy para o container rpa)
+# ============================================================
+
+@app.route('/api/rpa/executar', methods=['POST'])
+@rpa_auth_required
+def rpa_executar():
+    """Dispara um ciclo completo dos robôs no container RPA.
+
+    Faz proxy para o worker HTTP do container rpa (porta interna 5001).
+    """
+    rpa_url = os.environ.get('RPA_WORKER_URL', 'http://rpa:5001')
+    try:
+        resp = requests.post(f"{rpa_url}/executar", timeout=10)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as exc:
+        return jsonify({'status': 'erro', 'mensagem': f'Container RPA inacessível: {exc}'}), 503
+
+
+@app.route('/api/rpa/executar/status', methods=['GET'])
+@rpa_auth_required
+def rpa_executar_status():
+    rpa_url = os.environ.get('RPA_WORKER_URL', 'http://rpa:5001')
+    try:
+        resp = requests.get(f"{rpa_url}/executar/status", timeout=5)
+        return jsonify(resp.json()), resp.status_code
+    except Exception as exc:
+        return jsonify({'status': 'erro', 'mensagem': f'Container RPA inacessível: {exc}'}), 503
+
+
+# ============================================================
 # INICIALIZAÇÃO
 # ============================================================
 

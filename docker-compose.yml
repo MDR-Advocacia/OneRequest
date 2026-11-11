@@ -28,5 +28,31 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-onerequest}:${POSTGRES_PASSWORD:-senha_segura}@db:5432/${POSTGRES_DB:-onerequest}
     restart: unless-stopped
 
+  rpa:
+    build:
+      context: .
+      dockerfile: Dockerfile.rpa
+    depends_on:
+      - server
+    expose:
+      - "5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    environment:
+      RPA_API_URL: http://server:5000/api/rpa
+      RPA_API_KEY: ${RPA_API_KEY}
+      RPA_HEADLESS: "1"
+      ONELOG_USERNAME: ${ONELOG_USERNAME:-}
+      ONELOG_PASSWORD: ${ONELOG_PASSWORD:-}
+      ONELOG_API_URL: ${ONELOG_API_URL:-http://api-onelog.mdradvocacia.com}
+      BB_USUARIO: ${BB_USUARIO:-}
+      BB_SENHA: ${BB_SENHA:-}
+      LOKI_URL: ${LOKI_URL:-}
+      PUSHGATEWAY_URL: ${PUSHGATEWAY_URL:-}
+    restart: unless-stopped
+
 volumes:
   pgdata:

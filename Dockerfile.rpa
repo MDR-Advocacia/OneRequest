@@ -1,0 +1,23 @@
+FROM python:3.10-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev gcc curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Instala o Chromium do Playwright (headless, sem dependencias de GUI).
+RUN playwright install --with-deps chromium
+
+COPY . .
+
+RUN chmod +x entrypoint_rpa.sh
+
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 5001
+
+CMD ["./entrypoint_rpa.sh"]

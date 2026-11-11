@@ -303,66 +303,73 @@ def coletar_numeros_com_recuperacao(portal_page: Page):
         f"Último erro: {ultimo_erro}"
     )
 
+def _headless():
+    return os.getenv("RPA_HEADLESS", "0").strip().lower() in ("1", "true", "sim", "yes", "on")
+
+
 def main():
-    """
-    Função principal que orquestra a coleta de números e a sincronização de status.
-    """
+    """Função principal que orquestra a coleta de números e a sincronização de status."""
     database.inicializar_banco()
 
-    browser_process = None
     exit_code = 0
     lock = LockChrome()
+    headless = _headless()
     try:
-        # Uso exclusivo do Chrome: aguarda caso outro robo esteja usando (evita conflito na porta 9222).
         lock.acquire()
-        print(f"▶️  Executando o script: {BAT_FILE_PATH}")
-        browser_process = subprocess.Popen(
-            str(BAT_FILE_PATH), 
-            shell=True, 
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-        )
-        print("    Aguardando o navegador iniciar...")
-        
+
         with sync_playwright() as p:
-            browser = None
-            for attempt in range(15):
-                try:
-                    time.sleep(2)
-                    print(f"    Tentativa de conexão nº {attempt + 1}...")
-                    browser = p.chromium.connect_over_cdp(CDP_ENDPOINT)
-                    print("✅ Conectado com sucesso ao navegador!")
-                    break 
-                except Exception:
-                    continue
-            
-            if not browser:
-                raise ConnectionError("Não foi possível conectar ao navegador.")
+            if headless:
+                print("▶️  Iniciando Chromium headless (Playwright)...")
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
+                )
+                context = browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                )
+            else:
+                print(f"▶️  Executando o script: {BAT_FILE_PATH}")
+                subprocess.Popen(
+                    str(BAT_FILE_PATH),
+                    shell=True,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                )
+                print("    Aguardando o navegador iniciar...")
+                browser = None
+                for attempt in range(15):
+                    try:
+                        time.sleep(2)
+                        print(f"    Tentativa de conexão nº {attempt + 1}...")
+                        browser = p.chromium.connect_over_cdp(CDP_ENDPOINT)
+                        print("✅ Conectado com sucesso ao navegador!")
+                        break
+                    except Exception:
+                        continue
+                if not browser:
+                    raise ConnectionError("Não foi possível conectar ao navegador.")
+                context = browser.contexts[0]
 
-            context = browser.contexts[0]
             portal_page = fazer_login(context)
-
             numeros_atuais_portal = coletar_numeros_com_recuperacao(portal_page)
 
-            # --- Sincronização via API ---
             print("\n[🔄] Sincronizando status das solicitações com o servidor...")
             resultado = database.sincronizar_portal(numeros_atuais_portal)
             print(f"✅ Sincronização concluída: {resultado.get('respondidas', 0)} marcadas como respondidas, {resultado.get('total_portal', 0)} ativas no portal.")
-            
+
     except Exception as e:
         exit_code = 1
         print(f"\n========================= ERRO =========================")
         print(f"Ocorreu uma falha na automação: {e}")
         print("========================================================")
     finally:
-        # --- BLOCO FINALLY CORRIGIDO ---
-        # Este bloco agora executa a mesma lógica do nav.fechar()
         print("\n... Iniciando rotina de fechamento do navegador ...")
-        # Encerra TODO o Chrome do robo (todos os processos do perfil), nao so o da porta 9222,
-        # para nao sobrar janela aberta apos o ciclo.
-        print("     Encerrando o Chrome do robô (todos os processos do perfil)...")
-        matar_chrome_robo()
-
-        # Libera o lock para o proximo robo, sempre.
+        if not headless:
+            print("     Encerrando o Chrome do robô (todos os processos do perfil)...")
+            matar_chrome_robo()
         lock.release()
         print("--- Rotina de fechamento concluída. Fim da execução. ---")
 
