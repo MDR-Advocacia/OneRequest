@@ -23,6 +23,7 @@
                 <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Painel</a>
                 <a href="{{ url_for('respondidas') }}" class="nav-link {% if request.endpoint == 'respondidas' %}active{% endif %}">Respondidas</a>
                 {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('sessao_manual_page') }}" class="nav-link {% if request.endpoint == 'sessao_manual_page' %}active{% endif %}">Sessão BB</a>
                 <a href="{{ url_for('listar_usuarios') }}" class="nav-link {% if request.endpoint == 'listar_usuarios' %}active{% endif %}">Usuários</a>
                 {% endif %}
             </nav>

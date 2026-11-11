@@ -6,6 +6,7 @@ import os
 import time
 from playwright.sync_api import Page, Frame, TimeoutError
 
+import api_client
 import onelog_client
 
 LOGIN_URL = (
@@ -505,25 +506,127 @@ def fazer_login_direto(context) -> Page:
         raise e
 
 
+def _desfazer_sessao_remota(context, cookies, cdp=None, ua_original=None):
+    """Tira do navegador o que a tentativa com a sessão manual deixou, antes de
+    cair para o OneLog: os cookies injetados e o user-agent trocado.
+
+    Os cookies da sessão colada entram no domínio .bb.com.br, e a limpeza de
+    sessão que já existe só apaga o JSESSIONID do juridico.bb.com.br: sem isto,
+    o login do OneLog na mesma rodada rodaria com a sessão velha misturada."""
+    for cookie in cookies:
+        nome = cookie.get("name")
+        dominio = cookie.get("domain")
+        path = cookie.get("path") or "/"
+        try:
+            context.clear_cookies(name=nome, domain=dominio, path=path)
+        except TypeError:
+            try:
+                context.clear_cookies(name=nome, domain=dominio)
+            except Exception:
+                pass
+        except Exception:
+            pass
+    if cdp is not None and ua_original:
+        try:
+            cdp.send("Network.setUserAgentOverride", {"userAgent": ua_original})
+        except Exception:
+            pass
+
+
+def _tentar_sessao_remota(context):
+    """Tenta usar uma sessão manual colada no dashboard (plano B do OneLog).
+    Retorna a Page autenticada ou None se não há sessão ativa / sessão falhou.
+
+    Só invalida a sessão quando o portal ABRIU e não reconheceu o login. Portal
+    lento ou rede instável não dizem nada sobre a sessão: ela continua valendo
+    para a próxima rodada, e esta segue pelo OneLog. A invalidação leva o id da
+    sessão testada, para um robô que testou a sessão antiga não derrubar a que
+    o operador acabou de colar."""
+    try:
+        dados = api_client.obter_sessao_manual()
+    except Exception as exc:
+        print(f"    ⚠️ Não foi possível consultar sessão manual remota: {exc}")
+        return None
+
+    if not dados.get("ativa"):
+        return None
+
+    sessao_id = dados.get("id")
+    cookies = dados.get("cookies") or []
+    user_agent = dados.get("user_agent")
+    criado_por = dados.get("criado_por", "operador")
+    print(f"🔑 Sessão manual remota encontrada (colada por {criado_por}, {len(cookies)} cookies).")
+
+    portal_page = context.pages[0] if context.pages else context.new_page()
+
+    cdp = None
+    ua_original = None
+    if user_agent:
+        try:
+            ua_original = portal_page.evaluate("() => navigator.userAgent")
+            cdp = context.new_cdp_session(portal_page)
+            cdp.send("Network.setUserAgentOverride", {"userAgent": user_agent})
+        except Exception:
+            pass
+
+    cookies_formatados = []
+    for cookie in cookies:
+        formatado = _formatar_cookie_para_playwright(cookie)
+        if formatado:
+            cookies_formatados.append(formatado)
+    if not cookies_formatados:
+        print("    ⚠️ Sessão manual remota sem cookies válidos.")
+        _desfazer_sessao_remota(context, [], cdp, ua_original)
+        return None
+
+    context.add_cookies(cookies_formatados)
+    print(f"🍪 {len(cookies_formatados)} cookies da sessão manual remota injetados.")
+
+    try:
+        portal_page.goto(PORTAL_HOME_URL, timeout=90000, wait_until="domcontentloaded")
+        aguardar_documento(portal_page, timeout=30000)
+    except Exception as exc:
+        print(f"    ⚠️ O portal não abriu com a sessão manual ({exc}). "
+              "A sessão continua valendo; esta rodada segue pelo OneLog.")
+        _desfazer_sessao_remota(context, cookies_formatados, cdp, ua_original)
+        return None
+
+    if _sessao_parece_valida(portal_page):
+        print("✅ Sessão manual remota válida. Seguindo sem OneLog.")
+        return portal_page
+
+    print("    ⚠️ Sessão manual remota não autenticou. Invalidando e seguindo para OneLog.")
+    try:
+        api_client.invalidar_sessao_manual(
+            "Sessão não autenticou no portal (redirecionou para login).", sessao_id
+        )
+    except Exception:
+        pass
+    _desfazer_sessao_remota(context, cookies_formatados, cdp, ua_original)
+    return None
+
 def fazer_login(context) -> Page:
     """
     Realiza login no Portal Jurídico.
-    Modo LOGIN MANUAL (RPA_LOGIN_MANUAL=1): reaproveita a sessão de um login feito
-    a mão (cookies salvos por login_manual.py) e nunca usa credenciais automáticas.
-    Caso contrário: prefere OneLog quando configurado; senão, login direto via SSO.
+    Ordem de prioridade:
+    1. Modo LOGIN MANUAL local (RPA_LOGIN_MANUAL=1)
+    2. Sessão manual remota (colada no dashboard)
+    3. OneLog (quando configurado)
+    4. Login direto via SSO (fallback)
     """
     if login_manual_ativo():
         print("🔑 Modo LOGIN MANUAL ativo (RPA_LOGIN_MANUAL). Login automático desativado.")
         return fazer_login_manual(context)
+
+    page = _tentar_sessao_remota(context)
+    if page:
+        return page
 
     if not onelog_client.is_configured():
         print("🔐 OneLog não configurado. Usando login direto no SSO.")
         return fazer_login_direto(context)
 
     print("🔐 OneLog configurado. Usando autenticação via cookies do OneLog.")
-    # O OneLog pode ter falhas intermitentes (ex.: Cloudflare/captcha no login do BB
-    # esvaziando o pool de sessoes). Em vez de perder a rodada inteira na primeira falha,
-    # retenta com backoff: da tempo do OneLog reencher o pool antes de desistir do ciclo.
     tentativas = int(os.getenv("RPA_ONELOG_LOGIN_TENTATIVAS", "4"))
     backoff_base = int(os.getenv("RPA_ONELOG_LOGIN_BACKOFF_SEGUNDOS", "15"))
     ultimo_erro = None
@@ -535,7 +638,7 @@ def fazer_login(context) -> Page:
         except Exception as exc:
             ultimo_erro = exc
             if tentativa < tentativas:
-                espera = backoff_base * tentativa  # 15s, 30s, 45s...
+                espera = backoff_base * tentativa
                 print(f"⚠️ Login via OneLog falhou (tentativa {tentativa}/{tentativas}): {exc}")
                 print(f"    - Aguardando {espera}s antes de retentar (OneLog pode estar reenchendo o pool de sessoes)...")
                 time.sleep(espera)

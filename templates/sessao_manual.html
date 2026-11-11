@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Sessão BB - OneRequest{% endblock %}
+
+{% block content %}
+<section class="results-section">
+    <h2>Sessão Manual do Portal BB</h2>
+    <p style="color:#888; margin-bottom:1.5rem;">
+        Quando o OneLog não consegue entrar no portal do BB, cole aqui uma requisição
+        copiada do navegador (DevTools &rarr; Rede &rarr; Copiar como cURL). Os robôs
+        usam essa sessão por até {{ estado.validade_horas }}h.
+    </p>
+
+    {% if estado.ativa %}
+    <div class="alert alert-success" style="display:flex; flex-direction:column; gap:0.5rem;">
+        <strong>Sessão ativa</strong>
+        <span>Colada por: {{ estado.criado_por or '—' }}</span>
+        <span>Criada em: {{ estado.criado_em[:19] | replace('T', ' ') if estado.criado_em else '—' }}</span>
+        <span>Expira em: {{ estado.expira_em[:19] | replace('T', ' ') if estado.expira_em else '—' }}</span>
+    </div>
+    <form action="{{ url_for('sessao_manual_descartar') }}" method="POST"
+          onsubmit="return confirm('Descartar a sessão? Os robôs voltam a usar o OneLog.');"
+          style="margin-bottom:2rem;">
+        <button type="submit" class="danger-button">Descartar sessão</button>
+    </form>
+    {% elif estado.invalidada_em %}
+    <div class="alert alert-danger" style="display:flex; flex-direction:column; gap:0.5rem;">
+        <strong>Sessão invalidada</strong>
+        <span>Motivo: {{ estado.motivo or 'Falha na utilização' }}</span>
+        <span>Colada por: {{ estado.criado_por or '—' }}</span>
+        <span>Invalidada em: {{ estado.invalidada_em[:19] | replace('T', ' ') if estado.invalidada_em else '—' }}</span>
+    </div>
+    {% elif estado.criado_por %}
+    <div class="alert alert-danger" style="display:flex; flex-direction:column; gap:0.5rem;">
+        <strong>Sessão expirada</strong>
+        <span>Colada por: {{ estado.criado_por or '—' }}</span>
+        <span>Expirou em: {{ estado.expira_em[:19] | replace('T', ' ') if estado.expira_em else '—' }}</span>
+    </div>
+    {% else %}
+    <div style="padding:1rem; margin-bottom:1rem; border-radius:8px; background:#333; color:#aaa; border:1px solid #555;">
+        Nenhuma sessão manual registrada. Os robôs estão usando o OneLog normalmente.
+    </div>
+    {% endif %}
+
+    <h5 style="margin-top:2rem;">Colar nova sessão</h5>
+    <form action="{{ url_for('sessao_manual_colar') }}" method="POST">
+        <textarea name="texto" rows="8" placeholder="Cole aqui o cURL copiado do DevTools, ou os cookies em JSON..."
+                  style="width:100%; font-family:monospace; font-size:0.85rem; background:#1a1a2e; color:#e0e0e0;
+                         border:1px solid #444; border-radius:8px; padding:1rem; resize:vertical;"></textarea>
+        <div style="margin-top:1rem;">
+            <button type="submit">Enviar sessão</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

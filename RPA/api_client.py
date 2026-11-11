@@ -83,6 +83,18 @@ def obter_solicitacoes_fantasma():
     return data['numeros']
 
 
+def obter_sessao_manual():
+    return _get('/sessao-manual')
+
+
+def invalidar_sessao_manual(motivo, sessao_id=None):
+    # O id faz o servidor invalidar SÓ a sessão que o robô testou.
+    dados = {'motivo': motivo}
+    if sessao_id is not None:
+        dados['id'] = sessao_id
+    return _put('/sessao-manual/invalidar', dados)
+
+
 def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_portal=None):
     payload = {
         'numero_solicitacao': numero_solicitacao,
