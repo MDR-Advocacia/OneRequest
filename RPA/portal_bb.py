@@ -534,7 +534,8 @@ def _desfazer_sessao_remota(context, cookies, cdp=None, ua_original=None):
 
 
 def _tentar_sessao_remota(context):
-    """Tenta usar uma sessão manual colada no dashboard (plano B do OneLog).
+    """Tenta usar a sessão manual do BB colada no Flow (plano B do OneLog),
+    que o servidor do OneRequest repassa.
     Retorna a Page autenticada ou None se não há sessão ativa / sessão falhou.
 
     Só invalida a sessão quando o portal ABRIU e não reconheceu o login. Portal
@@ -610,7 +611,7 @@ def fazer_login(context) -> Page:
     Realiza login no Portal Jurídico.
     Ordem de prioridade:
     1. Modo LOGIN MANUAL local (RPA_LOGIN_MANUAL=1)
-    2. Sessão manual remota (colada no dashboard)
+    2. Sessão manual remota (colada no Flow, repassada pelo OneRequest)
     3. OneLog (quando configurado)
     4. Login direto via SSO (fallback)
     """

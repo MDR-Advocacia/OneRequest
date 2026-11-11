@@ -120,20 +120,10 @@ def inicializar_banco():
             external_id TEXT
         );
         """)
-        # cookies_json guarda os cookies CIFRADOS (Fernet): quem cifra e decifra
-        # é o server.py, e o banco nunca vê a sessão do BB em claro.
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS sessao_manual_bb (
-            id SERIAL PRIMARY KEY,
-            cookies_json TEXT NOT NULL,
-            user_agent TEXT,
-            criado_por TEXT,
-            criado_em TEXT NOT NULL,
-            expira_em TEXT NOT NULL,
-            invalidada_em TEXT,
-            motivo TEXT
-        );
-        """)
+        # A primeira versão da sessão manual (11/11/2026) guardava a sessão do
+        # BB aqui. Ela passou a ser colada no Flow, e este servidor só repassa:
+        # apaga a tabela que aquela versão criou.
+        cur.execute("DROP TABLE IF EXISTS sessao_manual_bb;")
 
 
 # --- Solicitações fantasma (descartadas) ---
@@ -282,79 +272,6 @@ def atualizar_status_portal(numero_solicitacao, status_portal, tem_anotacao_port
                 "UPDATE solicitacoes SET status_portal = %s, tem_anotacao_portal = %s WHERE numero_solicitacao = %s",
                 (status_portal, tem_anotacao_portal, numero_solicitacao)
             )
-
-
-SESSAO_MANUAL_VALIDADE_HORAS = 2
-
-
-def guardar_sessao_manual(cookies_json, user_agent, criado_por):
-    agora = datetime.now(TZ_BR)
-    expira = agora + timedelta(hours=SESSAO_MANUAL_VALIDADE_HORAS)
-    with _get_cursor() as cur:
-        cur.execute("DELETE FROM sessao_manual_bb")
-        cur.execute("""
-            INSERT INTO sessao_manual_bb (cookies_json, user_agent, criado_por, criado_em, expira_em)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (cookies_json, user_agent, criado_por,
-              agora.isoformat(), expira.isoformat()))
-
-
-def obter_sessao_manual_vigente():
-    agora_iso = datetime.now(TZ_BR).isoformat()
-    with _get_cursor() as cur:
-        cur.execute("""
-            SELECT id, cookies_json, user_agent, criado_por
-            FROM sessao_manual_bb
-            WHERE invalidada_em IS NULL AND expira_em > %s
-            ORDER BY id DESC LIMIT 1
-        """, (agora_iso,))
-        return cur.fetchone()
-
-
-def estado_sessao_manual():
-    with _get_cursor() as cur:
-        cur.execute("""
-            SELECT criado_por, criado_em, expira_em, invalidada_em, motivo
-            FROM sessao_manual_bb
-            ORDER BY id DESC LIMIT 1
-        """)
-        row = cur.fetchone()
-    if not row:
-        return {"ativa": False, "validade_horas": SESSAO_MANUAL_VALIDADE_HORAS}
-    agora_iso = datetime.now(TZ_BR).isoformat()
-    ativa = row['invalidada_em'] is None and row['expira_em'] > agora_iso
-    return {
-        "ativa": ativa,
-        "validade_horas": SESSAO_MANUAL_VALIDADE_HORAS,
-        "criado_por": row['criado_por'],
-        "criado_em": row['criado_em'],
-        "expira_em": row['expira_em'],
-        "invalidada_em": row['invalidada_em'],
-        "motivo": row['motivo'],
-    }
-
-
-def invalidar_sessao_manual(motivo, sessao_id=None):
-    """Tira a sessão colada de uso. Com `sessao_id`, só aquela: o robô que
-    testou uma sessão antiga não pode derrubar a que o operador acabou de
-    colar (guardar_sessao_manual troca a linha, e o id muda)."""
-    agora_iso = datetime.now(TZ_BR).isoformat()
-    with _get_cursor() as cur:
-        if sessao_id is not None:
-            cur.execute("""
-                UPDATE sessao_manual_bb SET invalidada_em = %s, motivo = %s
-                WHERE id = %s AND invalidada_em IS NULL
-            """, (agora_iso, motivo, sessao_id))
-        else:
-            cur.execute("""
-                UPDATE sessao_manual_bb SET invalidada_em = %s, motivo = %s
-                WHERE invalidada_em IS NULL
-            """, (agora_iso, motivo))
-
-
-def descartar_sessao_manual():
-    with _get_cursor() as cur:
-        cur.execute("DELETE FROM sessao_manual_bb")
 
 
 def obter_solicitacoes_pendentes():

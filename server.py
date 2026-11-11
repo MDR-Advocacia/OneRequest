@@ -10,105 +10,8 @@ from io import BytesIO
 import json
 import re
 import requests
-import base64
-import hashlib
-from cryptography.fernet import Fernet, InvalidToken
 
 app = Flask(__name__)
-
-
-# ============================================================
-# PARSER DE SESSÃO MANUAL (cURL / Cookie header / JSON)
-# ============================================================
-
-def _cookies_do_cabecalho(cabecalho):
-    cookies = []
-    for parte in cabecalho.split(";"):
-        nome, sep, valor = parte.strip().partition("=")
-        if sep and nome.strip():
-            cookies.append({"name": nome.strip(), "value": valor.strip(),
-                            "domain": ".bb.com.br", "path": "/",
-                            "secure": True, "httpOnly": True})
-    return cookies
-
-
-def _parse_curl(texto):
-    texto = texto.replace("^\n", " ").replace("\\\n", " ").replace("\\\r\n", " ")
-    if '^"' in texto:
-        texto = re.sub(r"\^(.)", r"\1", texto)
-    cookie = re.search(r"""(?:-b|--cookie)\s+(['"])(.*?)\1""", texto, re.S)
-    cabecalho = re.search(r"""(['"])cookie:\s*(.*?)\1""", texto, re.I | re.S)
-    agente = re.search(r"""(['"])user-agent:\s*(.*?)\1""", texto, re.I | re.S)
-    url_match = re.search(r"""curl\s+(?:-X\s+\w+\s+)?(['"])(https?://[^'"]+)\1""", texto, re.I)
-    if url_match and "bb.com.br" not in url_match.group(2):
-        raise ValueError("A requisição copiada não é do portal do BB (bb.com.br).")
-    bruto = (cookie and cookie.group(2)) or (cabecalho and cabecalho.group(2)) or ""
-    cookies = _cookies_do_cabecalho(bruto)
-    return {"cookies": cookies, "user_agent": agente.group(2).strip() if agente else None}
-
-
-def _parse_json_cookies(texto):
-    try:
-        dado = json.loads(texto)
-    except ValueError as exc:
-        raise ValueError(f"O texto parece JSON, mas não abre: {exc}")
-    if isinstance(dado, dict):
-        lista = dado.get("cookies") or []
-        agente = dado.get("user_agent")
-    elif isinstance(dado, list):
-        lista, agente = dado, None
-    else:
-        raise ValueError("Formato JSON não reconhecido.")
-    cookies = []
-    for c in lista:
-        if isinstance(c, dict) and c.get("name") and c.get("value") is not None:
-            dominio = str(c.get("domain") or ".bb.com.br")
-            if "bb.com.br" not in dominio:
-                continue
-            cookies.append({"name": c["name"], "value": str(c["value"]),
-                            "domain": dominio, "path": c.get("path") or "/",
-                            "secure": bool(c.get("secure", True)),
-                            "httpOnly": bool(c.get("httpOnly", True))})
-    return {"cookies": cookies, "user_agent": agente}
-
-
-def interpretar_sessao_manual(texto):
-    texto = (texto or "").strip()
-    if not texto:
-        raise ValueError("Cole o cURL ou cookies do portal do BB.")
-    if texto[0] in "[{":
-        sessao = _parse_json_cookies(texto)
-    elif texto.lower().startswith("curl"):
-        sessao = _parse_curl(texto)
-    else:
-        limpo = re.sub(r"(?i)^cookie:\s*", "", texto)
-        sessao = {"cookies": _cookies_do_cabecalho(limpo), "user_agent": None}
-    if not sessao["cookies"]:
-        raise ValueError("Não encontrei cookies do BB no texto colado. "
-                         "Copie uma requisição feita ao juridico.bb.com.br depois de entrar no portal.")
-    return sessao
-
-
-# Os cookies colados SÃO a sessão do BB de quem colou: com eles, qualquer um
-# entra no portal jurídico em nome dessa chave até a sessão cair. Por isso
-# ficam cifrados no banco (Fernet, chave derivada do SECRET_KEY, como no Flow):
-# o banco do OneRequest não é isolado — o Flow lê este Postgres para espelhar
-# as DMIs. Só o servidor decifra, na hora de entregar ao robô pela API.
-def _cifra_sessao():
-    chave = hashlib.sha256(f"sessao-manual-bb:{app.secret_key}".encode()).digest()
-    return Fernet(base64.urlsafe_b64encode(chave))
-
-
-def _cifrar_cookies(cookies):
-    return _cifra_sessao().encrypt(json.dumps(cookies).encode()).decode()
-
-
-def _decifrar_cookies(cifrado):
-    """None quando não abre (SECRET_KEY trocou, ou registro gravado sem cifra)."""
-    try:
-        return json.loads(_cifra_sessao().decrypt(cifrado.encode()).decode())
-    except (InvalidToken, ValueError, TypeError, AttributeError):
-        return None
 
 
 def carregar_env_local():
@@ -678,88 +581,53 @@ def rpa_listar_fantasmas():
 
 
 # ============================================================
-# ROTAS DA SESSÃO MANUAL BB (Dashboard)
+# SESSÃO MANUAL DO BB (plano B do OneLog) — vem do FLOW
 # ============================================================
+# A sessão é colada no Flow (Distribuídos BB › Configuração › Sessão manual do
+# BB) e vale para a coleta de lá e para estes robôs: uma colagem só (decisão
+# de 11/11/2026 — a página própria que o OneRequest teve por uma hora saiu).
+# Este servidor só repassa; os robôs continuam falando apenas com o OneRequest.
+# Configuração: FLOW_ONEREQUEST_API_KEY (a mesma chave do
+# ONEREQUEST_INTAKE_API_KEY do Flow) e, se mudar, FLOW_API_URL.
 
-@app.route('/sessao-manual')
-@login_required
-@admin_required
-def sessao_manual_page():
-    estado = database.estado_sessao_manual()
-    return render_template('sessao_manual.html', estado=estado)
-
-
-@app.route('/sessao-manual/colar', methods=['POST'])
-@login_required
-@admin_required
-def sessao_manual_colar():
-    texto = request.form.get('texto', '')
-    try:
-        sessao = interpretar_sessao_manual(texto)
-    except ValueError as exc:
-        flash(str(exc), 'danger')
-        return redirect(url_for('sessao_manual_page'))
-    database.guardar_sessao_manual(
-        cookies_json=_cifrar_cookies(sessao['cookies']),
-        user_agent=sessao.get('user_agent'),
-        criado_por=current_user.name,
+def _flow_sessao_manual(metodo, caminho, **kwargs):
+    base = (os.environ.get('FLOW_API_URL') or 'https://flow.dunatecnologia.com').rstrip('/')
+    chave = os.environ.get('FLOW_ONEREQUEST_API_KEY', '').strip()
+    if not chave:
+        raise RuntimeError('FLOW_ONEREQUEST_API_KEY não configurada')
+    resp = requests.request(
+        metodo, f"{base}/api/v1/onerequest/intake/{caminho}",
+        headers={'X-Onerequest-Api-Key': chave}, timeout=15, **kwargs,
     )
-    flash(f"Sessão recebida ({len(sessao['cookies'])} cookies). "
-          f"Válida por {database.SESSAO_MANUAL_VALIDADE_HORAS}h.", 'success')
-    return redirect(url_for('sessao_manual_page'))
+    resp.raise_for_status()
+    return resp.json()
 
-
-@app.route('/sessao-manual/descartar', methods=['POST'])
-@login_required
-@admin_required
-def sessao_manual_descartar():
-    database.descartar_sessao_manual()
-    flash("Sessão manual descartada. Os robôs voltam a usar o OneLog.", 'warning')
-    return redirect(url_for('sessao_manual_page'))
-
-
-# ============================================================
-# ROTAS DA SESSÃO MANUAL BB (API para RPAs)
-# ============================================================
 
 @app.route('/api/rpa/sessao-manual', methods=['GET'])
 @rpa_auth_required
 def rpa_obter_sessao_manual():
-    row = database.obter_sessao_manual_vigente()
-    if not row:
+    try:
+        return jsonify(_flow_sessao_manual('GET', 'sessao-manual-bb'))
+    except Exception as exc:
+        # Sem o Flow, sem sessão manual: os robôs seguem pelo OneLog.
+        print(f"Sessão manual: não consegui consultar o Flow ({exc}).")
         return jsonify({'ativa': False})
-    cookies = _decifrar_cookies(row['cookies_json'])
-    if cookies is None:
-        database.invalidar_sessao_manual(
-            "Os cookies guardados não abrem (o SECRET_KEY do servidor mudou?). Cole a sessão de novo.",
-            row['id'],
-        )
-        return jsonify({'ativa': False})
-    return jsonify({
-        'ativa': True,
-        # O robô devolve o id ao invalidar: só ESTA sessão sai de uso.
-        'id': row['id'],
-        'cookies': cookies,
-        'user_agent': row['user_agent'],
-        'criado_por': row['criado_por'],
-    })
 
 
 @app.route('/api/rpa/sessao-manual/invalidar', methods=['PUT'])
 @rpa_auth_required
 def rpa_invalidar_sessao_manual():
     dados = request.get_json(silent=True) or {}
-    motivo = str(dados.get('motivo') or 'Invalidada pelo RPA')[:500]
-    sessao_id = dados.get('id')
-    if sessao_id is not None:
-        try:
-            sessao_id = int(sessao_id)
-        except (TypeError, ValueError):
-            return jsonify({'status': 'erro', 'mensagem': 'id da sessão inválido.'}), 400
-    # Com id, só aquela sessão sai de uso (a que o robô testou); sem id
-    # (robô anterior a esta versão), a vigente.
-    database.invalidar_sessao_manual(motivo, sessao_id)
-    return jsonify({'status': 'sucesso'})
+    corpo = {'motivo': str(dados.get('motivo') or 'Invalidada pelo RPA')[:500]}
+    # O id (a hora em que a sessão foi colada no Flow) faz o Flow tirar de uso
+    # SÓ a sessão que o robô testou.
+    if dados.get('id') is not None:
+        corpo['id'] = str(dados['id'])
+    try:
+        return jsonify(_flow_sessao_manual('PUT', 'sessao-manual-bb/invalidar', json=corpo))
+    except Exception as exc:
+        print(f"Sessão manual: não consegui avisar o Flow ({exc}).")
+        return jsonify({'status': 'erro', 'mensagem': 'Não consegui avisar o Flow.'}), 502
 
 
 # ============================================================
