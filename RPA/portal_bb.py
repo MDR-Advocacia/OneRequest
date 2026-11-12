@@ -715,7 +715,7 @@ def fazer_login(context) -> Page:
         return fazer_login_direto(context)
 
     print("🔐 OneLog configurado. Usando autenticação via cookies do OneLog.")
-    tentativas = int(os.getenv("RPA_ONELOG_LOGIN_TENTATIVAS", "4"))
+    tentativas = int(os.getenv("RPA_ONELOG_LOGIN_TENTATIVAS", "2"))
     backoff_base = int(os.getenv("RPA_ONELOG_LOGIN_BACKOFF_SEGUNDOS", "15"))
     ultimo_erro = None
     for tentativa in range(1, tentativas + 1):
@@ -728,11 +728,16 @@ def fazer_login(context) -> Page:
             if tentativa < tentativas:
                 espera = backoff_base * tentativa
                 print(f"⚠️ Login via OneLog falhou (tentativa {tentativa}/{tentativas}): {exc}")
-                print(f"    - Aguardando {espera}s antes de retentar (OneLog pode estar reenchendo o pool de sessoes)...")
+                print(f"    - Aguardando {espera}s antes de retentar...")
                 time.sleep(espera)
-    raise RuntimeError(
-        f"Login via OneLog falhou apos {tentativas} tentativas. Ultimo erro: {ultimo_erro}"
-    )
+
+    print(f"⚠️ OneLog falhou após {tentativas} tentativas ({ultimo_erro}). Tentando login direto no SSO...")
+    try:
+        return fazer_login_direto(context)
+    except Exception as exc_sso:
+        raise RuntimeError(
+            f"Nenhum método de login funcionou. OneLog: {ultimo_erro} | SSO direto: {exc_sso}"
+        )
 
 
 # ============================================================
