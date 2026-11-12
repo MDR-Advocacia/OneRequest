@@ -58,7 +58,7 @@ def get_session():
         }
 
     print("⏳ Login enfileirado no OneLog. Aguardando conclusão...")
-    max_attempts = int(os.getenv("ONELOG_STATUS_ATTEMPTS", "150"))
+    max_attempts = int(os.getenv("ONELOG_STATUS_ATTEMPTS", "60"))
     poll_seconds = float(os.getenv("ONELOG_STATUS_INTERVAL_SECONDS", "2"))
 
     for _ in range(max_attempts):
