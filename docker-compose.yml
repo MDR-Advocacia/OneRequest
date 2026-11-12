@@ -45,6 +45,7 @@ services:
       RPA_API_URL: http://server:5000/api/rpa
       RPA_API_KEY: ${RPA_API_KEY}
       RPA_HEADLESS: "1"
+      RPA_PROXY: ${RPA_PROXY:-}
       # O agendador (run_robos.py) decide a janela 7h-18h pela hora local. Sem
       # isto o container roda em UTC e os robos trabalhariam das 4h as 15h de
       # Brasilia (visto em 11/11/2026: primeira execucao marcada para 07:00 UTC).

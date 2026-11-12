@@ -37,7 +37,8 @@ class Navegador:
         self._lock.acquire()
 
         self.p = sync_playwright().start()
-        self.browser = self.p.chromium.launch(
+
+        launch_opts = dict(
             headless=True,
             args=[
                 "--no-sandbox",
@@ -46,6 +47,12 @@ class Navegador:
                 "--disable-setuid-sandbox",
             ],
         )
+        proxy_url = os.getenv("RPA_PROXY", "").strip()
+        if proxy_url:
+            launch_opts["proxy"] = {"server": proxy_url}
+            print(f"    Proxy configurado: {proxy_url}")
+
+        self.browser = self.p.chromium.launch(**launch_opts)
         self.context = self.browser.new_context(
             viewport={"width": 1280, "height": 800},
             user_agent=(

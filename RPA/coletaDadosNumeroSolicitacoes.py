@@ -320,10 +320,15 @@ def main():
         with sync_playwright() as p:
             if headless:
                 print("▶️  Iniciando Chromium headless (Playwright)...")
-                browser = p.chromium.launch(
+                launch_opts = dict(
                     headless=True,
                     args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"],
                 )
+                proxy_url = os.getenv("RPA_PROXY", "").strip()
+                if proxy_url:
+                    launch_opts["proxy"] = {"server": proxy_url}
+                    print(f"    Proxy configurado: {proxy_url}")
+                browser = p.chromium.launch(**launch_opts)
                 context = browser.new_context(
                     viewport={"width": 1280, "height": 800},
                     user_agent=(
