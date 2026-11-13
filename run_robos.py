@@ -66,7 +66,17 @@ def executar_robo_status():
         return False
 
 
-def _avisar_ciclo(evento, tentativas=1, **dados):
+def _painel_fora_do_ar(exc):
+    """O painel nem atendeu (conexão recusada): é o container dele ainda subindo."""
+    try:
+        import requests
+
+        return isinstance(exc, requests.exceptions.ConnectionError)
+    except Exception:
+        return False
+
+
+def _avisar_ciclo(evento, tentativas=1, espera=20, insistir_se=None, **dados):
     """Avisa o painel (e, por ele, o Flow) que a passagem começou ou terminou.
 
     O Flow dizia que a passagem tinha terminado e o painel de DMIs só mudava um
@@ -74,6 +84,8 @@ def _avisar_ciclo(evento, tentativas=1, **dados):
     os dados e não sabia quando os robôs terminavam. Com o aviso, o Flow mostra
     "robôs passando agora" e, no fim, copia os dados na hora e diz a que horas a
     passagem terminou de verdade. Aviso que falha não pode derrubar a passagem.
+
+    `insistir_se(exc)`: quando dado, só tenta de novo se ele disser que vale a pena.
     """
     for tentativa in range(1, tentativas + 1):
         try:
@@ -83,8 +95,9 @@ def _avisar_ciclo(evento, tentativas=1, **dados):
             return True
         except Exception as exc:
             print(f"[⚠️] Não consegui avisar o {evento} da passagem (tentativa {tentativa}/{tentativas}): {exc}")
-            if tentativa < tentativas:
-                time.sleep(20)
+            if tentativa >= tentativas or (insistir_se and not insistir_se(exc)):
+                return False
+            time.sleep(espera)
     return False
 
 
@@ -98,7 +111,11 @@ def ciclo_completo_de_automacao(origem="agendador"):
     roda: "agendador" (de hora em hora) ou "manual" (run_robos_ciclo.py, o botão
     Rodar OneRequest do Flow) — as duas podem rodar ao mesmo tempo.
     """
-    _avisar_ciclo("inicio", origem=origem)
+    # No redeploy o container dos robôs sobe junto com o do painel, e a primeira
+    # passagem começa antes de o painel atender (13/11/2026: o aviso de começo se
+    # perdeu por 2 s). Só nesse caso — conexão recusada — insiste por alguns
+    # segundos; com o painel no ar e o Flow fora, não atrasa a passagem.
+    _avisar_ciclo("inicio", tentativas=5, espera=3, insistir_se=_painel_fora_do_ar, origem=origem)
     sucesso, falhou_em = False, []
     try:
         sucesso, falhou_em = _rodar_ciclo()
