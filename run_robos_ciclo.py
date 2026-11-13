@@ -7,5 +7,5 @@ import sys
 from run_robos import ciclo_completo_de_automacao
 
 if __name__ == "__main__":
-    sucesso = ciclo_completo_de_automacao()
+    sucesso = ciclo_completo_de_automacao(origem="manual")
     sys.exit(0 if sucesso else 1)

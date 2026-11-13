@@ -83,6 +83,19 @@ def obter_solicitacoes_fantasma():
     return data['numeros']
 
 
+def avisar_ciclo(evento, origem=None, sucesso=None, falhou_em=None):
+    """Avisa o começo ('inicio') ou o fim ('fim') de uma passagem dos robôs.
+    `origem`: 'agendador' ou 'manual'."""
+    dados = {'evento': evento}
+    if origem:
+        dados['origem'] = origem
+    if sucesso is not None:
+        dados['sucesso'] = bool(sucesso)
+    if falhou_em:
+        dados['falhou_em'] = list(falhou_em)
+    return _post('/ciclo', dados)
+
+
 def obter_sessao_manual():
     return _get('/sessao-manual')
 

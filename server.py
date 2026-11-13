@@ -590,7 +590,7 @@ def rpa_listar_fantasmas():
 # Configuração: FLOW_ONEREQUEST_API_KEY (a mesma chave do
 # ONEREQUEST_INTAKE_API_KEY do Flow) e, se mudar, FLOW_API_URL.
 
-def _flow_sessao_manual(metodo, caminho, **kwargs):
+def _chamar_flow(metodo, caminho, **kwargs):
     base = (os.environ.get('FLOW_API_URL') or 'https://flow.dunatecnologia.com').rstrip('/')
     chave = os.environ.get('FLOW_ONEREQUEST_API_KEY', '').strip()
     if not chave:
@@ -607,7 +607,7 @@ def _flow_sessao_manual(metodo, caminho, **kwargs):
 @rpa_auth_required
 def rpa_obter_sessao_manual():
     try:
-        return jsonify(_flow_sessao_manual('GET', 'sessao-manual-bb'))
+        return jsonify(_chamar_flow('GET', 'sessao-manual-bb'))
     except Exception as exc:
         # Sem o Flow, sem sessão manual: os robôs seguem pelo OneLog.
         print(f"Sessão manual: não consegui consultar o Flow ({exc}).")
@@ -624,9 +624,30 @@ def rpa_invalidar_sessao_manual():
     if dados.get('id') is not None:
         corpo['id'] = str(dados['id'])
     try:
-        return jsonify(_flow_sessao_manual('PUT', 'sessao-manual-bb/invalidar', json=corpo))
+        return jsonify(_chamar_flow('PUT', 'sessao-manual-bb/invalidar', json=corpo))
     except Exception as exc:
         print(f"Sessão manual: não consegui avisar o Flow ({exc}).")
+        return jsonify({'status': 'erro', 'mensagem': 'Não consegui avisar o Flow.'}), 502
+
+
+@app.route('/api/rpa/ciclo', methods=['POST'])
+@rpa_auth_required
+def rpa_avisar_ciclo():
+    """Os robôs avisam que começaram ou terminaram uma passagem; o painel repassa
+    ao Flow, que mostra "robôs passando agora" e, no fim, copia os dados na hora
+    e diz a que horas a passagem terminou (13/11/2026)."""
+    dados = request.get_json(silent=True) or {}
+    corpo = {'evento': str(dados.get('evento') or '')[:20]}
+    if dados.get('origem'):
+        corpo['origem'] = str(dados['origem'])[:20]
+    if dados.get('sucesso') is not None:
+        corpo['sucesso'] = bool(dados['sucesso'])
+    if isinstance(dados.get('falhou_em'), list):
+        corpo['falhou_em'] = [str(e)[:20] for e in dados['falhou_em']][:5]
+    try:
+        return jsonify(_chamar_flow('POST', 'ciclo-robos', json=corpo))
+    except Exception as exc:
+        print(f"Passagem dos robôs: não consegui avisar o Flow ({exc}).")
         return jsonify({'status': 'erro', 'mensagem': 'Não consegui avisar o Flow.'}), 502
 
 

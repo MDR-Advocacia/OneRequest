@@ -66,15 +66,54 @@ def executar_robo_status():
         return False
 
 
-def ciclo_completo_de_automacao():
+def _avisar_ciclo(evento, tentativas=1, **dados):
+    """Avisa o painel (e, por ele, o Flow) que a passagem começou ou terminou.
+
+    O Flow dizia que a passagem tinha terminado e o painel de DMIs só mudava um
+    tempo depois (operação, 13/11/2026): ele mostrava a hora em que ELE copiava
+    os dados e não sabia quando os robôs terminavam. Com o aviso, o Flow mostra
+    "robôs passando agora" e, no fim, copia os dados na hora e diz a que horas a
+    passagem terminou de verdade. Aviso que falha não pode derrubar a passagem.
+    """
+    for tentativa in range(1, tentativas + 1):
+        try:
+            from RPA import api_client
+
+            api_client.avisar_ciclo(evento, **dados)
+            return True
+        except Exception as exc:
+            print(f"[⚠️] Não consegui avisar o {evento} da passagem (tentativa {tentativa}/{tentativas}): {exc}")
+            if tentativa < tentativas:
+                time.sleep(20)
+    return False
+
+
+def ciclo_completo_de_automacao(origem="agendador"):
     """Roda, em sequência, Robô 1 (números), Robô 2 (detalhes) e o Robô de Status do Dia.
 
     O retry do agendador (a cada 5 min em erro) considera apenas Números+Detalhes;
     o Status é best-effort e não força o ciclo a repetir.
+
+    Avisa o começo e o fim da passagem (ver _avisar_ciclo). `origem` diz quem
+    roda: "agendador" (de hora em hora) ou "manual" (run_robos_ciclo.py, o botão
+    Rodar OneRequest do Flow) — as duas podem rodar ao mesmo tempo.
     """
+    _avisar_ciclo("inicio", origem=origem)
+    sucesso, falhou_em = False, []
+    try:
+        sucesso, falhou_em = _rodar_ciclo()
+        return sucesso
+    finally:
+        # O fim é o aviso que atualiza o painel do Flow: insiste por cerca de
+        # 1 min se o painel ou o Flow estiverem reiniciando (redeploy).
+        _avisar_ciclo("fim", tentativas=4, origem=origem, sucesso=sucesso, falhou_em=falhou_em)
+
+
+def _rodar_ciclo():
+    """Devolve (sucesso, etapas que falharam)."""
     if not executar_robo_1():
         print("\n[⚠️] Robô 2 e Status não serão executados devido a uma falha no Robô 1.")
-        return False
+        return False, ["numeros"]
 
     print("\n[⏳] Aguardando 20 s antes de iniciar o Robô 2...")
     time.sleep(20)
@@ -83,9 +122,10 @@ def ciclo_completo_de_automacao():
     # Robô de Status do Dia — roda em sequência (não simultâneo), best-effort.
     print("\n[⏳] Aguardando 10 s antes de iniciar o Robô de Status...")
     time.sleep(10)
-    executar_robo_status()
+    ok_status = executar_robo_status()
 
-    return ok_detalhes
+    falhou_em = ([] if ok_detalhes else ["detalhes"]) + ([] if ok_status else ["status_dia"])
+    return ok_detalhes, falhou_em
 
 
 # --- Agendamento adaptativo ---
